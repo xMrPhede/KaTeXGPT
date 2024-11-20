@@ -1,0 +1,44 @@
+{
+    "manifest_version": 3,
+    "name": "KaTeXGPT - ChatGPT to Word Equation Converter",
+    "version": "1.0.0",
+    "description": "Converts ChatGPT equations into Word-compatible format with a single click. Perfect for students and researchers!",
+    "author": "Federico Granata",
+    "permissions": [
+      "activeTab",
+      "scripting",
+      "clipboardWrite"
+    ],
+    "action": {
+      "default_icon": {
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+      }
+    },
+    "icons": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "content_scripts": [
+      {
+        "matches": ["https://chatgpt.com/*"],
+        "css": ["styles.css",
+                "popup.css"
+            ],
+        "js": [
+          "katex.min.js",
+          "confetti.js",
+          "content.js"          
+        ]
+      }
+    ],
+    "web_accessible_resources": [{
+        "resources": ["popup.html","popup.css"],
+        "matches": ["https://chat.openai.com/*"]
+      }],
+    "background": {
+      "service_worker": "background.js"
+    }
+  }
