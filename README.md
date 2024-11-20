@@ -27,7 +27,7 @@ Or install manually:
 1. Clone the repository:
 ```bash
 git clone https://github.com/xmrphede/KaTeXGPT.git
-cd REPO_NAME
+cd KaTeXGPT
 ```
 2. Open Chrome and navigate to `chrome://extensions/`
 3. Enable "Developer mode" in the top right corner
