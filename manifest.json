@@ -6,7 +6,6 @@
     "author": "Federico Granata",
     "permissions": [
       "activeTab",
-      "scripting",
       "clipboardWrite"
     ],
     "action": {
