@@ -84,7 +84,7 @@ This extension does not collect any personal data. All achievement data is store
 
 ## 🐛 Known Bugs
 
-~~- When pasting equations with large operators (Σ, Π, ∫), the intended index variable appears alongside the placeholder rather than replacing it. For example, in a summation, you'll see both the placeholder and the indexed variable 'xi' instead of just 'xi'.~~
+~~- When pasting equations with large operators (Σ, Π, ∫), the intended index variable appears alongside the placeholder rather than replacing it. For example, in a summation, you'll see both the placeholder and the indexed variable 'xi' instead of just 'xi'.~~ ✅ Fixed
 
 <div align="center">
 Made with ❤️ by Federico Granata
