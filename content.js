@@ -121,9 +121,47 @@ class KatexGPT {
             equation.addEventListener("click", () => {
                 const mathML = equation.querySelector(".katex-mathml math");
                 if (mathML) {
-                    const mathMLString = new XMLSerializer().serializeToString(mathML)
+                    let mathMLString = new XMLSerializer().serializeToString(mathML)
                         .replaceAll("&nbsp;", " ")
                         .replaceAll("&amp;", "&");
+                    
+                                    // Parse and wrap elements after munderover
+                        // Function to find the closing tag for a given opening tag
+                        function findClosingTag(str, startIndex, tagName) {
+                            // Look for closing tag considering possible attributes in the opening tag
+                            const regex = new RegExp(`</${tagName}>`, 'i');
+                            const match = str.substring(startIndex).match(regex);
+                            return match ? startIndex + match.index + match[0].length : -1;
+                        }
+
+                        // Process each </munderover> occurrence
+                        let position = 0;
+                        while (true) {
+                            // Find next </munderover>
+                            const mundoverEnd = mathMLString.indexOf('</munderover>', position);
+                            if (mundoverEnd === -1) break;
+
+                            // Find the next opening tag after </munderover>
+                            const nextTagMatch = mathMLString.substring(mundoverEnd + 13).match(/<(\w+)[^>]*>/);
+                            if (!nextTagMatch) break;
+
+                            const nextTagStart = mundoverEnd + 13 + nextTagMatch.index;
+                            const tagName = nextTagMatch[1];  // Get the tag name without attributes
+
+                            // Find the corresponding closing tag
+                            const closingTagPos = findClosingTag(mathMLString, nextTagStart, tagName);
+                            if (closingTagPos === -1) break;
+
+                            // Insert the mrow tags
+                            mathMLString = 
+                                mathMLString.slice(0, mundoverEnd + 13) + 
+                                '<mrow>' +
+                                mathMLString.slice(mundoverEnd + 13, closingTagPos) +
+                                '</mrow>' +
+                                mathMLString.slice(closingTagPos);
+
+                            position = closingTagPos + 7; // length of '</mrow>'
+                        }
                     
                     navigator.clipboard.writeText(mathMLString)
                         .then(() => {
