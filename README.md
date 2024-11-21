@@ -67,8 +67,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 Federico Granata
-- GitHub: [@YOUR_GITHUB_USERNAME](https://github.com/xMrPhede)
-- Twitter: [@YOUR_TWITTER_HANDLE](https://twitter.com/holygranats)
+- GitHub: [@xMrPhede](https://github.com/xMrPhede)
+- Twitter: [@holygranats](https://twitter.com/holygranats)
 
 ## 🙏 Support
 
