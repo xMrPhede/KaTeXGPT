@@ -24,11 +24,14 @@
 3. Confirm the installation
 
 Or install manually:
+
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/xmrphede/KaTeXGPT.git
 cd KaTeXGPT
 ```
+
 2. Open Chrome and navigate to `chrome://extensions/`
 3. Enable "Developer mode" in the top right corner
 4. Click "Load unpacked" in the top left
@@ -43,7 +46,9 @@ cd KaTeXGPT
 5. The equation will be perfectly formatted!
 
 ### Building
+
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/xmrphede/KaTeXGPT.git
 ```
@@ -51,6 +56,7 @@ git clone https://github.com/xmrphede/KaTeXGPT.git
 2. Make your changes
 
 3. Test locally:
+
 - Open `chrome://extensions/`
 - Enable Developer mode
 - Click "Load unpacked"
@@ -67,12 +73,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 Federico Granata
+
 - GitHub: [@xMrPhede](https://github.com/xMrPhede)
 - Twitter: [@holygranats](https://twitter.com/holygranats)
 
 ## 🙏 Support
 
 If you find this extension helpful, consider:
+
 - ⭐ Starring the repository
 - 🐛 Reporting bugs
 - 💡 Suggesting new features
@@ -85,7 +93,7 @@ This extension does not collect any personal data. All achievement data is store
 ## 🐛 Known Bugs
 
 ~~- When pasting equations with large operators (Σ, Π, ∫), the intended index variable appears alongside the placeholder rather than replacing it. For example, in a summation, you'll see both the placeholder and the indexed variable 'xi' instead of just 'xi'.~~ ✅ Fixed
-- Matrixes are not correctly rendered in Word, pasting them will result in a bunch of MathML text
+~~- Matrixes are not correctly rendered in Word, pasting them will result in a bunch of MathML text ~~ ✅ Fixed
 
 <div align="center">
 Made with ❤️ by Federico Granata
