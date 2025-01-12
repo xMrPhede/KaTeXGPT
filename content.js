@@ -138,7 +138,8 @@ class KatexGPT {
         if (mathML) {
           let mathMLString = new XMLSerializer()
             .serializeToString(mathML)
-            .replaceAll("&nbsp;", " ");
+            .replaceAll("&nbsp;", " ")
+            .replaceAll("&", "&amp;");
 
           // Parse and wrap elements after munderover
           // Function to find the closing tag for a given opening tag
