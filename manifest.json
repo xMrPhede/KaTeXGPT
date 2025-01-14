@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "KaTeXGPT - ChatGPT to Word Equation Converter",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Converts ChatGPT equations into Word-compatible format with a single click. Perfect for students and researchers!",
   "author": "Federico Granata",
   "permissions": ["activeTab", "clipboardWrite"],
