@@ -136,55 +136,93 @@ class KatexGPT {
       equation.addEventListener("click", () => {
         const mathML = equation.querySelector(".katex-mathml math");
         if (mathML) {
+          // Serialize the MathML element to a string
           let mathMLString = new XMLSerializer()
             .serializeToString(mathML)
             .replaceAll("&nbsp;", " ")
             .replaceAll("&", "&amp;");
 
-          // Parse and wrap elements after munderover
-          // Function to find the closing tag for a given opening tag
-          function findClosingTag(str, startIndex, tagName) {
-            // Look for closing tag considering possible attributes in the opening tag
-            const regex = new RegExp(`</${tagName}>`, "i");
-            const match = str.substring(startIndex).match(regex);
-            return match ? startIndex + match.index + match[0].length : -1;
-          }
+          // Parse the MathML string into an XML document
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(
+            mathMLString,
+            "application/xml"
+          );
 
-          // Process each </munderover> occurrence
-          let position = 0;
-          while (true) {
-            // Find next </munderover>
-            const mundoverEnd = mathMLString.indexOf("</munderover>", position);
-            if (mundoverEnd === -1) break;
-
-            // Find the next opening tag after </munderover>
-            const nextTagMatch = mathMLString
-              .substring(mundoverEnd + 13)
-              .match(/<(\w+)[^>]*>/);
-            if (!nextTagMatch) break;
-
-            const nextTagStart = mundoverEnd + 13 + nextTagMatch.index;
-            const tagName = nextTagMatch[1]; // Get the tag name without attributes
-
-            // Find the corresponding closing tag
-            const closingTagPos = findClosingTag(
-              mathMLString,
-              nextTagStart,
-              tagName
+          // Transformation function:
+          // Convert any <mrow> with fenced <mo> elements into <mfenced>
+          function transformMfencedElements(xmlDoc) {
+            const mathNS = "http://www.w3.org/1998/Math/MathML";
+            // Get all <mrow> elements (convert NodeList to Array to safely modify DOM)
+            const mrowElements = Array.from(
+              xmlDoc.getElementsByTagName("mrow")
             );
-            if (closingTagPos === -1) break;
 
-            // Insert the mrow tags
-            mathMLString =
-              mathMLString.slice(0, mundoverEnd + 13) +
-              "<mrow>" +
-              mathMLString.slice(mundoverEnd + 13, closingTagPos) +
-              "</mrow>" +
-              mathMLString.slice(closingTagPos);
+            mrowElements.forEach((mrow) => {
+              // Filter to consider only element children (ignoring text nodes/whitespace)
+              const elementChildren = Array.from(mrow.childNodes).filter(
+                (node) => node.nodeType === Node.ELEMENT_NODE
+              );
 
-            position = closingTagPos + 7; // length of '</mrow>'
+              // Check if the first child is an <mo> with fence="true"
+              if (
+                elementChildren.length > 0 &&
+                elementChildren[0].nodeName === "mo" &&
+                elementChildren[0].getAttribute("fence") === "true"
+              ) {
+                // The first <mo> provides the "open" attribute.
+                const openFence = elementChildren[0].textContent.trim();
+                let closeFence = "";
+                let contentNodes;
+
+                // Check if the last element is also an <mo> with fence="true"
+                if (
+                  elementChildren.length > 1 &&
+                  elementChildren[elementChildren.length - 1].nodeName ===
+                    "mo" &&
+                  elementChildren[elementChildren.length - 1].getAttribute(
+                    "fence"
+                  ) === "true"
+                ) {
+                  closeFence =
+                    elementChildren[
+                      elementChildren.length - 1
+                    ].textContent.trim();
+                  // The content to be fenced is any element between the first and last.
+                  contentNodes = elementChildren.slice(
+                    1,
+                    elementChildren.length - 1
+                  );
+                } else {
+                  // Otherwise, assume there is no closing fence.
+                  contentNodes = elementChildren.slice(1);
+                }
+
+                // Create a new <mfenced> element with the proper MathML namespace.
+                const mfenced = xmlDoc.createElementNS(mathNS, "mfenced");
+                mfenced.setAttribute("open", openFence);
+                mfenced.setAttribute("close", closeFence);
+                mfenced.setAttribute("separators", "");
+
+                // Append all the content nodes into the <mfenced> element.
+                contentNodes.forEach((node) => {
+                  // Appending moves the node from its original location.
+                  mfenced.appendChild(node);
+                });
+
+                // Replace the <mrow> element with the new <mfenced> element.
+                mrow.parentNode.replaceChild(mfenced, mrow);
+              }
+            });
           }
 
+          // Run the transformation on the XML document.
+          transformMfencedElements(xmlDoc);
+
+          // Re-serialize the modified XML document back to a string.
+          mathMLString = new XMLSerializer().serializeToString(xmlDoc);
+
+          // Copy the processed MathML string to the clipboard.
           navigator.clipboard
             .writeText(mathMLString)
             .then(() => {
@@ -193,14 +231,14 @@ class KatexGPT {
               localStorage.setItem("totalCopies", this.totalCopies.toString());
               this.checkCopyMilestones();
 
-              // Add visual feedback for copy
+              // Provide visual feedback for the copy action.
               this.showCopyFeedback(equation);
             })
             .catch((err) => {
               console.error("❌ Failed to copy equation:", err);
             });
         }
-      }); // Removed { once: true }
+      });
     });
   }
 
