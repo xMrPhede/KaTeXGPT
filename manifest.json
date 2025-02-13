@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "KaTeXGPT - ChatGPT to Word Equation Converter",
-  "version": "1.2.2",
-  "description": "Converts ChatGPT equations into Word-compatible format with a single click. Perfect for students and researchers!",
+  "name": "KaTeXGPT - ChatGPT & DeepSeek to Word Equation Converter",
+  "version": "1.3.0",
+  "description": "Converts ChatGPT and DeepSeek equations into Word-compatible format with a single click. Perfect for students and researchers!",
   "author": "Federico Granata",
   "permissions": ["activeTab", "clipboardWrite"],
   "action": {
@@ -19,7 +19,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://chatgpt.com/*"],
+      "matches": ["https://chat.openai.com/*", "https://chat.deepseek.com/*"],
       "css": ["styles.css", "popup.css"],
       "js": ["katex.min.js", "confetti.js", "content.js"]
     }
@@ -27,7 +27,7 @@
   "web_accessible_resources": [
     {
       "resources": ["popup.html", "popup.css"],
-      "matches": ["https://chat.openai.com/*"]
+      "matches": ["https://chat.openai.com/*", "https://chat.deepseek.com/*"]
     }
   ],
   "background": {

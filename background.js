@@ -1,5 +1,8 @@
 chrome.action.onClicked.addListener((tab) => {
-    if (tab.url.includes("chat.openai.com")) {
-      chrome.tabs.sendMessage(tab.id, { action: "PROMPT" });
-    }
-  });
+  if (
+    tab.url.includes("chat.openai.com") ||
+    tab.url.includes("chat.deepseek.com")
+  ) {
+    chrome.tabs.sendMessage(tab.id, { action: "PROMPT" });
+  }
+});

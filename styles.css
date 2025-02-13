@@ -1,32 +1,32 @@
 .copyable-equation {
-    position: relative;
-    transition: box-shadow 0.2s ease-in-out;
-  }
-  
-  .copyable-equation:hover {
-    box-shadow: 0 0 0 1px #343541;
-  }
-  
-  .copyable-equation:hover::after {
-    content: "Click to copy";
-    position: absolute;
-    top: 0;
-    right: 0;
-    transform: translate(100%, -100%);
-    background-color: #343541;
-    color: white;
-    padding: 0.5em 1em;
-    border-radius: 5px;
-    font-size: 0.6em;
-    font-family: system-ui, -apple-system, sans-serif;
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0.9;
-    transition: opacity 0.2s ease-in-out;
-  }
-  
-  .copyable-equation:active::after {
-    content: "Copied!";
-  }
+  position: relative;
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.copyable-equation:hover {
+  box-shadow: 0 0 0 1px #343541;
+}
+
+.copyable-equation:hover::after {
+  content: "Click to copy";
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(100%, -100%);
+  background-color: #343541;
+  color: white;
+  padding: 0.5em 1em;
+  border-radius: 5px;
+  font-size: 0.6em;
+  font-family: system-ui, -apple-system, sans-serif;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0.9;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.copyable-equation:active::after {
+  content: "Copied!";
+}
