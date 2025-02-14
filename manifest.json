@@ -19,7 +19,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://chat.openai.com/*", "https://chat.deepseek.com/*"],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://chat.deepseek.com/*"
+      ],
       "css": ["styles.css", "popup.css"],
       "js": ["katex.min.js", "confetti.js", "content.js"]
     }
@@ -27,7 +31,11 @@
   "web_accessible_resources": [
     {
       "resources": ["popup.html", "popup.css"],
-      "matches": ["https://chat.openai.com/*", "https://chat.deepseek.com/*"]
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://chat.deepseek.com/*"
+      ]
     }
   ],
   "background": {
