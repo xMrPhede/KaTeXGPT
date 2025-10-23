@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "KaTeXGPT - AI to Word Equation Converter. (ChatGPT, Gemini, Claude & More",
   "version": "1.3.3",
-  "description": "Converts equations into Word-compatible format with a single click. Perfect for students and researchers! Supports ChatGPT, Claude, Gemini, Perplexity and DeepSeek.",
+  "description": "Converts equations into Word-compatible format with a single click. Perfect for students and researchers!",
   "author": "Federico Granata",
   "permissions": ["activeTab", "clipboardWrite"],
   "action": {
