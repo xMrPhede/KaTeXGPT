@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "KaTeXGPT - ChatGPT & DeepSeek to Word Equation Converter.",
-  "version": "1.3.2",
+  "name": "KaTeXGPT - AI to Word Equation Converter. (ChatGPT, Gemini, Claude, Perplexity & DeepSeek",
+  "version": "1.3.3",
   "description": "Converts ChatGPT and DeepSeek equations into Word-compatible format with a single click. Perfect for students and researchers!",
   "author": "Federico Granata",
   "permissions": ["activeTab", "clipboardWrite"],
