@@ -10,40 +10,47 @@
 
 </div>
 
-## 🚀 Features
+## 🚀 Overview
 
-- **One-Click Conversion**: Convert ChatGPT's KaTeX equations to Word-compatible MathML format
-- **Visual Feedback**: Clear indication when equations are copied
-- **Simple Interface**: No configuration needed - just click and paste
-- **Word Compatible**: Equations paste perfectly into Microsoft Word
+**KaTeX to Word Equation Converter** is a browser extension that converts KaTeX-rendered mathematical expressions into **Microsoft Word-compatible MathML** format.
+
+Originally built for **ChatGPT**, the extension now supports **Deepseek**, **Perplexity**, **Claude**, and **Gemini**, making it the most versatile tool for AI-generated math content.
+
+## ✨ Features
+
+* **One-Click Conversion**: Instantly convert equations rendered by ChatGPT, Deepseek, Perplexity, Claude, or Gemini into Word-compatible MathML.
+* **Multi-Platform Support**: Works seamlessly across all supported AI chat platforms.
+* **Visual Feedback**: See clear visual cues when equations are copied successfully.
+* **Simple Interface**: No setup required—just click and paste.
+* **Word Compatible**: Paste directly into Microsoft Word or Google Docs for perfectly formatted equations.
 
 ## 📥 Installation
 
 1. Visit the [Chrome Web Store](https://chrome.google.com/webstore/detail/maojnknofbadmhfkbllhpddhophjhblo)
-2. Click "Add to Chrome"
+2. Click **“Add to Chrome”**
 3. Confirm the installation
 
 Or install manually:
-
-1. Clone the repository:
 
 ```bash
 git clone https://github.com/xmrphede/KaTeXGPT.git
 cd KaTeXGPT
 ```
 
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" in the top right corner
-4. Click "Load unpacked" in the top left
-5. Select the `extension` directory from the cloned repository
+Then:
+
+1. Open Chrome and navigate to `chrome://extensions/`
+2. Enable **Developer mode** (top right)
+3. Click **“Load unpacked”**
+4. Select the `extension` directory
 
 ## 🎯 How to Use
 
-1. Open [ChatGPT](https://chat.openai.com)
-2. Find any mathematical equation
+1. Open **ChatGPT**, **Deepseek**, **Perplexity**, **Claude**, or **Gemini**
+2. Find any KaTeX-rendered mathematical equation
 3. Click the equation to copy it
-4. Paste directly into Microsoft Word
-5. The equation will be perfectly formatted!
+4. Paste it directly into **Microsoft Word**
+5. The equation will be perfectly formatted—no edits needed!
 
 ### Building
 
@@ -54,47 +61,47 @@ git clone https://github.com/xmrphede/KaTeXGPT.git
 ```
 
 2. Make your changes
-
 3. Test locally:
 
-- Open `chrome://extensions/`
-- Enable Developer mode
-- Click "Load unpacked"
-- Select the extension directory
+   * Open `chrome://extensions/`
+   * Enable Developer mode
+   * Click “Load unpacked”
+   * Select the extension directory
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request to improve compatibility with new AI platforms or add additional features.
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ## 👨‍💻 Author
 
 Federico Granata
 
-- GitHub: [@xMrPhede](https://github.com/xMrPhede)
-- Twitter: [@holygranats](https://twitter.com/holygranats)
+* GitHub: [@xMrPhede](https://github.com/xMrPhede)
+* Twitter: [@holygranats](https://twitter.com/holygranats)
 
 ## 🙏 Support
 
 If you find this extension helpful, consider:
 
-- ⭐ Starring the repository
-- 🐛 Reporting bugs
-- 💡 Suggesting new features
-- ☕ [Buying me a coffee](https://www.buymeacoffee.com/xmrphede)
+* ⭐ Starring the repository
+* 🐛 Reporting bugs
+* 💡 Suggesting new features
+* ☕ [Buying me a coffee](https://www.buymeacoffee.com/xmrphede)
 
 ## 📄 Privacy Policy
 
-This extension does not collect any personal data. All achievement data is stored locally on your device.
+This extension does **not collect or transmit** any personal data. All usage data is stored locally on your device.
 
 ## 🐛 Known Bugs
 
-~~ When pasting equations with large operators (Σ, Π, ∫), the intended index variable appears alongside the placeholder rather than replacing it. For example, in a summation, you'll see both the placeholder and the indexed variable 'xi' instead of just 'xi'.~~ ✅ Fixed
+~~When pasting equations with large operators (Σ, Π, ∫), the index variable appeared twice.~~ ✅ **Fixed**
+~~Matrix equations pasted as raw MathML text.~~ ✅ **Fixed**
 
-~~ Matrixes are not correctly rendered in Word, pasting them will result in a bunch of MathML text ~~ ✅ Fixed
+---
 
 <div align="center">
 Made with ❤️ by Federico Granata
