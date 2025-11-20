@@ -123,123 +123,527 @@ class KatexGPT {
     console.log("Observer enabled");
   }
 
+  // Helper: robust clipboard fallback
+  copyToClipboard(textToCopy) {
+    return navigator.clipboard
+      .writeText(textToCopy)
+      .catch(() => {
+        try {
+          const textarea = document.createElement("textarea");
+          textarea.value = textToCopy;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.top = "-1000px";
+          document.body.appendChild(textarea);
+          textarea.select();
+          const ok = document.execCommand("copy");
+          document.body.removeChild(textarea);
+          if (!ok) {
+            return Promise.reject(new Error("execCommand copy failed"));
+          }
+        } catch (e) {
+          return Promise.reject(e);
+        }
+        return Promise.resolve();
+      });
+  }
+
+  updateStats() {
+    this.totalCopies++;
+    localStorage.setItem("totalCopies", this.totalCopies.toString());
+    this.checkCopyMilestones();
+  }
+
+  sanitizeMathMLForWord(mathMLString) {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(mathMLString, "application/xml");
+
+    // Word doesn't support <semantics> or <annotation>, strip them
+    const semanticsElements = xmlDoc.getElementsByTagName("semantics");
+    for (let sem of Array.from(semanticsElements)) {
+      // Move all children except <annotation> out of <semantics>
+      const children = Array.from(sem.childNodes);
+      children.forEach((child) => {
+        if (
+          child.nodeName !== "annotation" &&
+          child.nodeName !== "annotation-xml"
+        ) {
+          sem.parentNode.insertBefore(child, sem);
+        }
+      });
+      sem.parentNode.removeChild(sem);
+    }
+
+    // Remove any remaining standalone <annotation> elements
+    const annotations = xmlDoc.querySelectorAll("annotation, annotation-xml");
+    annotations.forEach((ann) => ann.parentNode?.removeChild(ann));
+
+    // Attributes Word doesn't support
+    const unsupportedAttrs = [
+      "mathvariant", "lspace", "rspace", "accent", "accentunder",
+      "align", "columnalign", "columnlines", "columnspacing", "columnwidth",
+      "equalcolumns", "equalrows", "frame", "rowalign", "rowlines",
+      "rowspacing", "side", "minlabelspacing", "charalign", "charspacing",
+      "linethickness", "bevelled", "notation", "longdivstyle", "actuarial",
+      "radical", "stretchy", "symmetric", "maxsize", "minsize", "largeop",
+      "movablelimits", "form", "separator", "fence", "linebreak",
+      "lineleading", "linebreakstyle", "linebreakmultchar", "indentalign",
+      "indentshift", "indenttarget", "indentalignfirst", "indentalignlast",
+      "indentshiftfirst", "indentshiftlast",
+    ];
+
+    const allElements = xmlDoc.getElementsByTagName("*");
+    for (let el of Array.from(allElements)) {
+      unsupportedAttrs.forEach((attr) => el.removeAttribute(attr));
+    }
+
+    // Replace prime entities (′, ″, ‴) with simple apostrophes
+    const moElements = xmlDoc.getElementsByTagName("mo");
+    for (let mo of Array.from(moElements)) {
+      const content = mo.textContent.trim();
+      if (
+        content === "′" || content === "&#x2032;" || content === "&#8242;" ||
+        content === "″" || content === "&#x2033;" || content === "&#8243;" ||
+        content === "‴" || content === "&#x2034;" || content === "&#8244;" ||
+        content === "'" || content === "&#x27;"
+      ) {
+        const primeCount =
+          content === "″" || content === "&#x2033;" || content === "&#8243;"
+            ? 2
+            : content === "‴" || content === "&#x2034;" || content === "&#8244;"
+            ? 3
+            : 1;
+        mo.textContent = "'".repeat(primeCount);
+      }
+    }
+
+    // Replace non-breaking spaces with regular spaces (Word dislikes NBSPs in MathML)
+    const textNodes = xmlDoc.evaluate(
+      "//text()",
+      xmlDoc,
+      null,
+      XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE,
+      null
+    );
+    for (let i = 0; i < textNodes.snapshotLength; i++) {
+      const node = textNodes.snapshotItem(i);
+      if (node.nodeValue) {
+        node.nodeValue = node.nodeValue.replace(/\u00A0/g, " ");
+      }
+    }
+
+    return new XMLSerializer().serializeToString(xmlDoc);
+  }
+
   createCopyEquationButtons() {
     // Only select equations that haven't been processed yet
-    const equations = Array.from(
-      document.querySelectorAll(".katex:not(.copyable-equation)")
+    const allCandidates = Array.from(
+      document.querySelectorAll(
+        ".katex:not(.kgpt-processed), .katex-display:not(.kgpt-processed)"
+      )
     );
+    // Prefer binding to inner .katex if present; avoid double-binding .katex-display that contains a .katex child
+    const equations = allCandidates.filter((el) => {
+      if (el.classList.contains("katex-display")) {
+        return !el.querySelector(".katex");
+      }
+      return true;
+    });
 
     equations.forEach((equation) => {
       equation.style.cursor = "pointer";
+      equation.classList.add("kgpt-processed");
       equation.classList.add("copyable-equation");
 
-      equation.addEventListener("click", () => {
-        const mathML = equation.querySelector(".katex-mathml math");
-        if (mathML) {
-          // Serialize the MathML element to a string
-          let mathMLString = new XMLSerializer()
-            .serializeToString(mathML)
+      // Capture-phase listener to bypass site-level stopPropagation
+      equation.addEventListener(
+        "click",
+        (evt) => {
+          // Do not interfere with text selection drags
+          if (window.getSelection && String(window.getSelection())) return;
+
+          chrome.storage.local.get(["outputFormat", "latexDelimiter"], (result) => {
+            if (result.outputFormat === "latex") {
+              this.handleLatexCopy(equation, result.latexDelimiter);
+            } else {
+              this.handleMathmlCopy(equation);
+            }
+          });
+        },
+        true
+      );
+    });
+  }
+
+  getTexSource(equation) {
+    // 1) Standard KaTeX semantics annotation location
+    const katexMathml =
+        equation.querySelector(".katex-mathml") ||
+        equation.closest(".katex, .katex-display")?.querySelector(".katex-mathml");
+    
+    if (katexMathml) {
+        const annotation = katexMathml.querySelector(
+            'annotation[encoding="application/x-tex"]'
+        );
+        if (annotation && annotation.textContent) {
+            return annotation.textContent;
+        }
+    }
+
+    // 2) Common fallbacks used by hosts
+    const ariaTex =
+      equation.getAttribute("aria-label") ||
+      (equation.closest(".katex-display, .katex") &&
+        equation
+          .closest(".katex-display, .katex")
+          .getAttribute("aria-label"));
+
+    const dataTexEl =
+      equation.closest(
+        '*[data-tex], *[data-latex], *[data-math], *[data-equation], *[data-original], *[data-original-tex], *[data-source]'
+      ) || equation;
+    
+    const dataTex =
+      dataTexEl?.getAttribute("data-tex") ||
+      dataTexEl?.getAttribute("data-latex") ||
+      dataTexEl?.getAttribute("data-math") ||
+      dataTexEl?.getAttribute("data-equation") ||
+      dataTexEl?.getAttribute("data-original-tex") ||
+      dataTexEl?.getAttribute("data-original") ||
+      dataTexEl?.getAttribute("data-source") ||
+      equation.dataset?.tex;
+
+    const scriptTex =
+      (equation.closest(".katex-display, .katex") &&
+        equation
+          .closest(".katex-display, .katex")
+          .querySelector('script[type="math/tex"], script[type="math/latex"]')
+          ?.textContent) ||
+      null;
+
+    return ariaTex || dataTex || scriptTex || null;
+  }
+
+  handleLatexCopy(equation, delimiter) {
+    let latex = this.getTexSource(equation);
+
+    if (latex) {
+        let formattedLatex = latex;
+        switch (delimiter) {
+          case "brackets":
+            formattedLatex = `\\[${latex}\\]`;
+            break;
+          case "doubledollar":
+            formattedLatex = `$$${latex}$$`;
+            break;
+          case "dollar":
+          default:
+            formattedLatex = `$${latex}$`;
+            break;
+        }
+
+        console.log("📋 Copying LaTeX to clipboard:", formattedLatex);
+        this.copyToClipboard(formattedLatex)
+        .then(() => {
+          console.log("✅ LaTeX copied to clipboard");
+          this.updateStats();
+          this.showCopyFeedback(equation);
+        })
+        .catch((err) => {
+          console.error("❌ Failed to copy LaTeX:", err);
+        });
+    } else {
+        // Try to recover via heuristic if direct source failed
+        const recoveredTex = this.extractTexFromKatexHtml(equation);
+        if (recoveredTex) {
+            let formattedLatex = recoveredTex;
+            switch (delimiter) {
+              case "brackets":
+                formattedLatex = `\\[${recoveredTex}\\]`;
+                break;
+              case "doubledollar":
+                formattedLatex = `$$${recoveredTex}$$`;
+                break;
+              case "dollar":
+              default:
+                formattedLatex = `$${recoveredTex}$`;
+                break;
+            }
+            console.log("📋 Copying recovered LaTeX to clipboard:", formattedLatex);
+            this.copyToClipboard(formattedLatex)
+                .then(() => {
+                    console.log("✅ Recovered LaTeX copied");
+                    this.updateStats();
+                    this.showCopyFeedback(equation);
+                });
+        } else {
+            console.warn("LaTeX source not found, falling back to MathML");
+            // Fallback to MathML if explicit LaTeX request fails completely
+            this.handleMathmlCopy(equation);
+        }
+    }
+  }
+
+  extractTexFromKatexHtml(root) {
+      const container =
+        root.querySelector(".katex-html") ||
+        (root.closest(".katex-display, .katex") &&
+          root
+            .closest(".katex-display, .katex")
+            .querySelector(".katex-html"));
+      if (!container) return null;
+      const structuralPattern =
+        /(katex-html|base|strut|pstrut|vlist|vlist-t|vlist-r|sizing)/;
+      const tokenPattern =
+        /(mord|mop|mbin|mrel|mpunct|mopen|mclose|text|mspace)/;
+      const harvest = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return node.nodeValue || "";
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) return "";
+        const el = node;
+        const cls = el.className || "";
+        if (structuralPattern.test(cls)) {
+          return Array.from(el.childNodes).map(harvest).join("");
+        }
+        if (cls.includes("msupsub")) {
+          // Treat as a superscript by default
+          const supText = Array.from(el.childNodes)
+            .map(harvest)
+            .join("")
+            .trim();
+          return `^{${supText}}`;
+        }
+        if (tokenPattern.test(cls)) {
+          // Keep spacing around relation/binary operators
+          let content = Array.from(el.childNodes).map(harvest).join("");
+          if (cls.includes("mrel") || cls.includes("mbin")) {
+            content = ` ${content.trim()} `;
+          }
+          return content;
+        }
+        return Array.from(el.childNodes).map(harvest).join("");
+      };
+      let tex = harvest(container);
+      tex = tex.replace(/\s+/g, " ").replace(/−/g, "-").trim();
+      return tex || null;
+  }
+
+  handleMathmlCopy(equation) {
+    // Aggressively find the <math> element, ignoring HTML wrappers
+    let mathElement = null;
+
+    // Strategy 1: Direct query from clicked element
+    mathElement = equation.querySelector("math");
+
+    // Strategy 2: Walk up to .katex or .katex-display container and find <math>
+    if (!mathElement) {
+      const container = equation.closest(".katex, .katex-display");
+      if (container) {
+        mathElement = container.querySelector("math");
+      }
+    }
+
+    // Strategy 3: Check if clicked element itself is <math>
+    if (
+      !mathElement &&
+      equation.tagName &&
+      equation.tagName.toLowerCase() === "math"
+    ) {
+      mathElement = equation;
+    }
+
+    // Strategy 4: Check siblings
+    if (!mathElement && equation.parentElement) {
+      mathElement = equation.parentElement.querySelector("math");
+    }
+
+    // Strategy 5: Look inside .katex-mathml specifically
+    if (!mathElement) {
+      const katexMathml =
+        equation.querySelector(".katex-mathml") ||
+        equation.closest(".katex, .katex-display")?.querySelector(".katex-mathml");
+      if (katexMathml) {
+        mathElement = katexMathml.querySelector("math");
+      }
+    }
+
+    // If we didn't find MathML, try to recover TeX and render MathML via KaTeX
+    let generatedFromTex = false;
+    if (!mathElement) {
+      const texSource = this.getTexSource(equation);
+
+      if (texSource && typeof katex !== "undefined" && katex.renderToString) {
+        try {
+          let mathMLString = katex
+            .renderToString(texSource, { output: "mathml" })
             .replaceAll("&nbsp;", " ")
             .replaceAll("&", "&amp;");
-
-          // Parse the MathML string into an XML document
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(
-            mathMLString,
-            "application/xml"
-          );
-
-          // Transformation function:
-          // Convert any <mrow> with fenced <mo> elements into <mfenced>
-          function transformMfencedElements(xmlDoc) {
-            const mathNS = "http://www.w3.org/1998/Math/MathML";
-            // Get all <mrow> elements (convert NodeList to Array to safely modify DOM)
-            const mrowElements = Array.from(
-              xmlDoc.getElementsByTagName("mrow")
-            );
-
-            mrowElements.forEach((mrow) => {
-              // Filter to consider only element children (ignoring text nodes/whitespace)
-              const elementChildren = Array.from(mrow.childNodes).filter(
-                (node) => node.nodeType === Node.ELEMENT_NODE
-              );
-
-              // Check if the first child is an <mo> with fence="true"
-              if (
-                elementChildren.length > 0 &&
-                elementChildren[0].nodeName === "mo" &&
-                elementChildren[0].getAttribute("fence") === "true"
-              ) {
-                // The first <mo> provides the "open" attribute.
-                const openFence = elementChildren[0].textContent.trim();
-                let closeFence = "";
-                let contentNodes;
-
-                // Check if the last element is also an <mo> with fence="true"
-                if (
-                  elementChildren.length > 1 &&
-                  elementChildren[elementChildren.length - 1].nodeName ===
-                    "mo" &&
-                  elementChildren[elementChildren.length - 1].getAttribute(
-                    "fence"
-                  ) === "true"
-                ) {
-                  closeFence =
-                    elementChildren[
-                      elementChildren.length - 1
-                    ].textContent.trim();
-                  // The content to be fenced is any element between the first and last.
-                  contentNodes = elementChildren.slice(
-                    1,
-                    elementChildren.length - 1
-                  );
-                } else {
-                  // Otherwise, assume there is no closing fence.
-                  contentNodes = elementChildren.slice(1);
-                }
-
-                // Create a new <mfenced> element with the proper MathML namespace.
-                const mfenced = xmlDoc.createElementNS(mathNS, "mfenced");
-                mfenced.setAttribute("open", openFence);
-                mfenced.setAttribute("close", closeFence);
-                mfenced.setAttribute("separators", "");
-
-                // Append all the content nodes into the <mfenced> element.
-                contentNodes.forEach((node) => {
-                  // Appending moves the node from its original location.
-                  mfenced.appendChild(node);
-                });
-
-                // Replace the <mrow> element with the new <mfenced> element.
-                mrow.parentNode.replaceChild(mfenced, mrow);
-              }
-            });
-          }
-
-          // Run the transformation on the XML document.
-          transformMfencedElements(xmlDoc);
-
-          // Re-serialize the modified XML document back to a string.
-          mathMLString = new XMLSerializer().serializeToString(xmlDoc);
-
-          // Copy the processed MathML string to the clipboard.
-          navigator.clipboard
-            .writeText(mathMLString)
+          mathMLString = this.sanitizeMathMLForWord(mathMLString);
+          generatedFromTex = true;
+          this.copyToClipboard(mathMLString)
             .then(() => {
-              console.log("✅ MathML copied to clipboard");
-              this.totalCopies++;
-              localStorage.setItem("totalCopies", this.totalCopies.toString());
-              this.checkCopyMilestones();
-
-              // Provide visual feedback for the copy action.
+              console.log("✅ MathML (from TeX) copied to clipboard");
+              this.updateStats();
               this.showCopyFeedback(equation);
             })
             .catch((err) => {
-              console.error("❌ Failed to copy equation:", err);
+              console.error("❌ Failed to copy equation (from TeX):", err);
             });
+        } catch (e) {
+          console.error("❌ KaTeX renderToString failed on recovered TeX:", e);
         }
-      });
-    });
+      } else if (!texSource) {
+        // 3) Last-resort: derive TeX heuristically from KaTeX HTML, then render to MathML
+        try {
+          const texFromHtml = this.extractTexFromKatexHtml(equation);
+          if (
+            texFromHtml &&
+            typeof katex !== "undefined" &&
+            katex.renderToString
+          ) {
+            let mathMLString = katex
+              .renderToString(texFromHtml, { output: "mathml" })
+              .replaceAll("&nbsp;", " ")
+              .replaceAll("&", "&amp;");
+            mathMLString = this.sanitizeMathMLForWord(mathMLString);
+            generatedFromTex = true;
+            this.copyToClipboard(mathMLString)
+              .then(() => {
+                console.log("✅ MathML (from katex-html heuristic) copied");
+                this.updateStats();
+                this.showCopyFeedback(equation);
+              })
+              .catch((err) => {
+                console.error(
+                  "❌ Failed to copy equation (from katex-html heuristic):",
+                  err
+                );
+              });
+          } else {
+            console.warn(
+              "No MathML/TeX source and katex-html heuristic failed to extract TeX."
+            );
+          }
+        } catch (err) {
+          console.error("❌ katex-html to MathML heuristic failed:", err);
+        }
+      }
+    }
+
+    // If we found MathML in DOM, proceed with original flow
+    if (!generatedFromTex && mathElement) {
+      console.log(
+        "🔍 Found mathElement, nodeName:",
+        mathElement.nodeName,
+        "tagName:",
+        mathElement.tagName
+      );
+
+      // Ensure we're extracting ONLY the <math> element, not any wrapper
+      if (mathElement.nodeName.toLowerCase() !== "math") {
+        console.warn(
+          "⚠️ mathElement is not <math>, it's:",
+          mathElement.nodeName,
+          "- searching for <math> inside"
+        );
+        mathElement = mathElement.querySelector("math");
+      }
+
+      if (!mathElement) {
+        console.error(
+          "❌ Could not locate <math> element after extraction attempt"
+        );
+        return;
+      }
+
+      console.log("✓ Confirmed mathElement is <math>, proceeding to serialize");
+
+      let mathMLString = new XMLSerializer()
+        .serializeToString(mathElement)
+        .replaceAll("&nbsp;", " ")
+        .replaceAll("&", "&amp;");
+
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(mathMLString, "application/xml");
+
+      function transformMfencedElements(xmlDoc) {
+        const mathNS = "http://www.w3.org/1998/Math/MathML";
+        const mrowElements = Array.from(xmlDoc.getElementsByTagName("mrow"));
+
+        mrowElements.forEach((mrow) => {
+          const elementChildren = Array.from(mrow.childNodes).filter(
+            (node) => node.nodeType === Node.ELEMENT_NODE
+          );
+
+          if (
+            elementChildren.length > 0 &&
+            elementChildren[0].nodeName === "mo" &&
+            elementChildren[0].getAttribute("fence") === "true"
+          ) {
+            const openFence = elementChildren[0].textContent.trim();
+            let closeFence = "";
+            let contentNodes;
+
+            if (
+              elementChildren.length > 1 &&
+              elementChildren[elementChildren.length - 1].nodeName === "mo" &&
+              elementChildren[elementChildren.length - 1].getAttribute(
+                "fence"
+              ) === "true"
+            ) {
+              closeFence = elementChildren[
+                elementChildren.length - 1
+              ].textContent.trim();
+              contentNodes = elementChildren.slice(
+                1,
+                elementChildren.length - 1
+              );
+            } else {
+              contentNodes = elementChildren.slice(1);
+            }
+
+            const mfenced = xmlDoc.createElementNS(mathNS, "mfenced");
+            mfenced.setAttribute("open", openFence);
+            mfenced.setAttribute("close", closeFence);
+            mfenced.setAttribute("separators", "");
+
+            contentNodes.forEach((node) => {
+              mfenced.appendChild(node);
+            });
+
+            mrow.parentNode.replaceChild(mfenced, mrow);
+          }
+        });
+      }
+
+      transformMfencedElements(xmlDoc);
+      mathMLString = new XMLSerializer().serializeToString(xmlDoc);
+      mathMLString = this.sanitizeMathMLForWord(mathMLString);
+
+      console.log(
+        "📋 Copying MathML to clipboard:",
+        mathMLString.substring(0, 200) + "..."
+      );
+
+      this.copyToClipboard(mathMLString)
+        .then(() => {
+          console.log(
+            "✅ MathML copied to clipboard (length:",
+            mathMLString.length,
+            "chars)"
+          );
+          this.updateStats();
+          this.showCopyFeedback(equation);
+        })
+        .catch((err) => {
+          console.error("❌ Failed to copy equation:", err);
+        });
+    } else if (!generatedFromTex && !mathElement) {
+      console.warn(
+        "No MathML or TeX could be resolved for clicked KaTeX node."
+      );
+    }
   }
 
   showCopyFeedback(equation) {
