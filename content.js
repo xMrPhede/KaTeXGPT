@@ -564,7 +564,7 @@ class KatexGPT {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(mathMLString, "application/xml");
 
-      function transformMfencedElements(xmlDoc) {
+      function optimizeFencedMrows(xmlDoc) {
         const mathNS = "http://www.w3.org/1998/Math/MathML";
         const mrowElements = Array.from(xmlDoc.getElementsByTagName("mrow"));
 
@@ -578,43 +578,58 @@ class KatexGPT {
             elementChildren[0].nodeName === "mo" &&
             elementChildren[0].getAttribute("fence") === "true"
           ) {
-            const openFence = elementChildren[0].textContent.trim();
-            let closeFence = "";
-            let contentNodes;
+            // This is a fenced mrow. 
+            // 1. Replace comma operators <mo>,</mo> with <mtext>, </mtext>
+            // 2. Convert identifiers <mi> to <mtext>
+            // 3. Remove empty <mtext>
 
-            if (
-              elementChildren.length > 1 &&
-              elementChildren[elementChildren.length - 1].nodeName === "mo" &&
-              elementChildren[elementChildren.length - 1].getAttribute(
-                "fence"
-              ) === "true"
-            ) {
-              closeFence = elementChildren[
-                elementChildren.length - 1
-              ].textContent.trim();
-              contentNodes = elementChildren.slice(
-                1,
-                elementChildren.length - 1
-              );
-            } else {
-              contentNodes = elementChildren.slice(1);
-            }
+            const newChildren = [];
 
-            const mfenced = xmlDoc.createElementNS(mathNS, "mfenced");
-            mfenced.setAttribute("open", openFence);
-            mfenced.setAttribute("close", closeFence);
-            mfenced.setAttribute("separators", "");
-
-            contentNodes.forEach((node) => {
-              mfenced.appendChild(node);
+            elementChildren.forEach((child) => {
+              if (child.nodeName === "mo" && child.textContent.trim() === ",") {
+                // Case 1: Convert comma operator to text
+                const mtext = xmlDoc.createElementNS(mathNS, "mtext");
+                mtext.textContent = ", ";
+                newChildren.push(mtext);
+              }
+              else if (child.nodeName === "mi") {
+                // Case 2: Convert identifier to text
+                // Detect if it contains Greek letters or Math symbols - if so, maybe keep as mi? 
+                // But user requested "replace <mi> with mtext whenever you find one".
+                // We will blindly follow this for fenced content as requested.
+                const mtext = xmlDoc.createElementNS(mathNS, "mtext");
+                mtext.textContent = child.textContent;
+                // Only add if content is not empty
+                if (mtext.textContent.trim().length > 0) {
+                  newChildren.push(mtext);
+                }
+              }
+              else if (child.nodeName === "mtext") {
+                // Case 3: Filter existing mtext
+                if (child.textContent.trim().length > 0) {
+                  newChildren.push(child);
+                }
+              }
+              else {
+                // Keep other elements (operators, numbers, sub/sup, etc.)
+                newChildren.push(child);
+              }
             });
 
-            mrow.parentNode.replaceChild(mfenced, mrow);
+            // Clear existing children
+            while (mrow.firstChild) {
+              mrow.removeChild(mrow.firstChild);
+            }
+
+            // Append new children
+            newChildren.forEach((child) => {
+              mrow.appendChild(child);
+            });
           }
         });
       }
 
-      transformMfencedElements(xmlDoc);
+      optimizeFencedMrows(xmlDoc);
       mathMLString = new XMLSerializer().serializeToString(xmlDoc);
       mathMLString = this.sanitizeMathMLForWord(mathMLString);
 
