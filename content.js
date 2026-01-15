@@ -211,8 +211,8 @@ class KatexGPT {
           content === "″" || content === "&#x2033;" || content === "&#8243;"
             ? 2
             : content === "‴" || content === "&#x2034;" || content === "&#8244;"
-            ? 3
-            : 1;
+              ? 3
+              : 1;
         mo.textContent = "'".repeat(primeCount);
       }
     }
@@ -278,16 +278,16 @@ class KatexGPT {
   getTexSource(equation) {
     // 1) Standard KaTeX semantics annotation location
     const katexMathml =
-        equation.querySelector(".katex-mathml") ||
-        equation.closest(".katex, .katex-display")?.querySelector(".katex-mathml");
-    
+      equation.querySelector(".katex-mathml") ||
+      equation.closest(".katex, .katex-display")?.querySelector(".katex-mathml");
+
     if (katexMathml) {
-        const annotation = katexMathml.querySelector(
-            'annotation[encoding="application/x-tex"]'
-        );
-        if (annotation && annotation.textContent) {
-            return annotation.textContent;
-        }
+      const annotation = katexMathml.querySelector(
+        'annotation[encoding="application/x-tex"]'
+      );
+      if (annotation && annotation.textContent) {
+        return annotation.textContent;
+      }
     }
 
     // 2) Common fallbacks used by hosts
@@ -302,7 +302,7 @@ class KatexGPT {
       equation.closest(
         '*[data-tex], *[data-latex], *[data-math], *[data-equation], *[data-original], *[data-original-tex], *[data-source]'
       ) || equation;
-    
+
     const dataTex =
       dataTexEl?.getAttribute("data-tex") ||
       dataTexEl?.getAttribute("data-latex") ||
@@ -328,22 +328,22 @@ class KatexGPT {
     let latex = this.getTexSource(equation);
 
     if (latex) {
-        let formattedLatex = latex;
-        switch (delimiter) {
-          case "brackets":
-            formattedLatex = `\\[${latex}\\]`;
-            break;
-          case "doubledollar":
-            formattedLatex = `$$${latex}$$`;
-            break;
-          case "dollar":
-          default:
-            formattedLatex = `$${latex}$`;
-            break;
-        }
+      let formattedLatex = latex;
+      switch (delimiter) {
+        case "brackets":
+          formattedLatex = `\\[${latex}\\]`;
+          break;
+        case "doubledollar":
+          formattedLatex = `$$${latex}$$`;
+          break;
+        case "dollar":
+        default:
+          formattedLatex = `$${latex}$`;
+          break;
+      }
 
-        console.log("📋 Copying LaTeX to clipboard:", formattedLatex);
-        this.copyToClipboard(formattedLatex)
+      console.log("📋 Copying LaTeX to clipboard:", formattedLatex);
+      this.copyToClipboard(formattedLatex)
         .then(() => {
           console.log("✅ LaTeX copied to clipboard");
           this.updateStats();
@@ -353,80 +353,80 @@ class KatexGPT {
           console.error("❌ Failed to copy LaTeX:", err);
         });
     } else {
-        // Try to recover via heuristic if direct source failed
-        const recoveredTex = this.extractTexFromKatexHtml(equation);
-        if (recoveredTex) {
-            let formattedLatex = recoveredTex;
-            switch (delimiter) {
-              case "brackets":
-                formattedLatex = `\\[${recoveredTex}\\]`;
-                break;
-              case "doubledollar":
-                formattedLatex = `$$${recoveredTex}$$`;
-                break;
-              case "dollar":
-              default:
-                formattedLatex = `$${recoveredTex}$`;
-                break;
-            }
-            console.log("📋 Copying recovered LaTeX to clipboard:", formattedLatex);
-            this.copyToClipboard(formattedLatex)
-                .then(() => {
-                    console.log("✅ Recovered LaTeX copied");
-                    this.updateStats();
-                    this.showCopyFeedback(equation);
-                });
-        } else {
-            console.warn("LaTeX source not found, falling back to MathML");
-            // Fallback to MathML if explicit LaTeX request fails completely
-            this.handleMathmlCopy(equation);
+      // Try to recover via heuristic if direct source failed
+      const recoveredTex = this.extractTexFromKatexHtml(equation);
+      if (recoveredTex) {
+        let formattedLatex = recoveredTex;
+        switch (delimiter) {
+          case "brackets":
+            formattedLatex = `\\[${recoveredTex}\\]`;
+            break;
+          case "doubledollar":
+            formattedLatex = `$$${recoveredTex}$$`;
+            break;
+          case "dollar":
+          default:
+            formattedLatex = `$${recoveredTex}$`;
+            break;
         }
+        console.log("📋 Copying recovered LaTeX to clipboard:", formattedLatex);
+        this.copyToClipboard(formattedLatex)
+          .then(() => {
+            console.log("✅ Recovered LaTeX copied");
+            this.updateStats();
+            this.showCopyFeedback(equation);
+          });
+      } else {
+        console.warn("LaTeX source not found, falling back to MathML");
+        // Fallback to MathML if explicit LaTeX request fails completely
+        this.handleMathmlCopy(equation);
+      }
     }
   }
 
   extractTexFromKatexHtml(root) {
-      const container =
-        root.querySelector(".katex-html") ||
-        (root.closest(".katex-display, .katex") &&
-          root
-            .closest(".katex-display, .katex")
-            .querySelector(".katex-html"));
-      if (!container) return null;
-      const structuralPattern =
-        /(katex-html|base|strut|pstrut|vlist|vlist-t|vlist-r|sizing)/;
-      const tokenPattern =
-        /(mord|mop|mbin|mrel|mpunct|mopen|mclose|text|mspace)/;
-      const harvest = (node) => {
-        if (node.nodeType === Node.TEXT_NODE) {
-          return node.nodeValue || "";
-        }
-        if (node.nodeType !== Node.ELEMENT_NODE) return "";
-        const el = node;
-        const cls = el.className || "";
-        if (structuralPattern.test(cls)) {
-          return Array.from(el.childNodes).map(harvest).join("");
-        }
-        if (cls.includes("msupsub")) {
-          // Treat as a superscript by default
-          const supText = Array.from(el.childNodes)
-            .map(harvest)
-            .join("")
-            .trim();
-          return `^{${supText}}`;
-        }
-        if (tokenPattern.test(cls)) {
-          // Keep spacing around relation/binary operators
-          let content = Array.from(el.childNodes).map(harvest).join("");
-          if (cls.includes("mrel") || cls.includes("mbin")) {
-            content = ` ${content.trim()} `;
-          }
-          return content;
-        }
+    const container =
+      root.querySelector(".katex-html") ||
+      (root.closest(".katex-display, .katex") &&
+        root
+          .closest(".katex-display, .katex")
+          .querySelector(".katex-html"));
+    if (!container) return null;
+    const structuralPattern =
+      /(katex-html|base|strut|pstrut|vlist|vlist-t|vlist-r|sizing)/;
+    const tokenPattern =
+      /(mord|mop|mbin|mrel|mpunct|mopen|mclose|text|mspace)/;
+    const harvest = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.nodeValue || "";
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return "";
+      const el = node;
+      const cls = el.className || "";
+      if (structuralPattern.test(cls)) {
         return Array.from(el.childNodes).map(harvest).join("");
-      };
-      let tex = harvest(container);
-      tex = tex.replace(/\s+/g, " ").replace(/−/g, "-").trim();
-      return tex || null;
+      }
+      if (cls.includes("msupsub")) {
+        // Treat as a superscript by default
+        const supText = Array.from(el.childNodes)
+          .map(harvest)
+          .join("")
+          .trim();
+        return `^{${supText}}`;
+      }
+      if (tokenPattern.test(cls)) {
+        // Keep spacing around relation/binary operators
+        let content = Array.from(el.childNodes).map(harvest).join("");
+        if (cls.includes("mrel") || cls.includes("mbin")) {
+          content = ` ${content.trim()} `;
+        }
+        return content;
+      }
+      return Array.from(el.childNodes).map(harvest).join("");
+    };
+    let tex = harvest(container);
+    tex = tex.replace(/\s+/g, " ").replace(/−/g, "-").trim();
+    return tex || null;
   }
 
   handleMathmlCopy(equation) {
@@ -477,8 +477,7 @@ class KatexGPT {
         try {
           let mathMLString = katex
             .renderToString(texSource, { output: "mathml" })
-            .replaceAll("&nbsp;", " ")
-            .replaceAll("&", "&amp;");
+            .replaceAll("&nbsp;", " ");
           mathMLString = this.sanitizeMathMLForWord(mathMLString);
           generatedFromTex = true;
           this.copyToClipboard(mathMLString)
@@ -504,8 +503,7 @@ class KatexGPT {
           ) {
             let mathMLString = katex
               .renderToString(texFromHtml, { output: "mathml" })
-              .replaceAll("&nbsp;", " ")
-              .replaceAll("&", "&amp;");
+              .replaceAll("&nbsp;", " ");
             mathMLString = this.sanitizeMathMLForWord(mathMLString);
             generatedFromTex = true;
             this.copyToClipboard(mathMLString)
@@ -561,8 +559,7 @@ class KatexGPT {
 
       let mathMLString = new XMLSerializer()
         .serializeToString(mathElement)
-        .replaceAll("&nbsp;", " ")
-        .replaceAll("&", "&amp;");
+        .replaceAll("&nbsp;", " ");
 
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(mathMLString, "application/xml");
