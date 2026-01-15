@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "KaTeXGPT - AI to Word Equation Converter. (ChatGPT, Gemini, Claude & More",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Converts equations into Word-compatible format with a single click. Perfect for students and researchers!",
   "author": "Federico Granata",
-  "permissions": ["activeTab", "clipboardWrite", "storage"],
+  "permissions": [
+    "activeTab",
+    "clipboardWrite",
+    "storage"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -28,13 +32,23 @@
         "https://gemini.google.com/*",
         "https://claude.ai/*"
       ],
-      "css": ["styles.css", "popup.css"],
-      "js": ["katex.min.js", "confetti.js", "content.js"]
+      "css": [
+        "styles.css",
+        "popup.css"
+      ],
+      "js": [
+        "katex.min.js",
+        "confetti.js",
+        "content.js"
+      ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["popup.html", "popup.css"],
+      "resources": [
+        "popup.html",
+        "popup.css"
+      ],
       "matches": [
         "https://chatgpt.com/*",
         "https://chat.openai.com/*",
