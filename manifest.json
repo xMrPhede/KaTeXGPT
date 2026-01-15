@@ -29,6 +29,7 @@
         "https://chat.openai.com/*",
         "https://chat.deepseek.com/*",
         "https://perplexity.ai/*",
+        "https://www.perplexity.ai/*",
         "https://gemini.google.com/*",
         "https://claude.ai/*"
       ],
@@ -54,6 +55,7 @@
         "https://chat.openai.com/*",
         "https://chat.deepseek.com/*",
         "https://perplexity.ai/*",
+        "https://www.perplexity.ai/*",
         "https://gemini.google.com/*",
         "https://claude.ai/*"
       ]

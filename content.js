@@ -154,6 +154,19 @@ class KatexGPT {
     this.checkCopyMilestones();
   }
 
+  stripKatexSpan(htmlString) {
+    if (!htmlString.includes("katex")) return htmlString;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, "text/html");
+    const math = doc.querySelector("math");
+
+    if (math) {
+      return new XMLSerializer().serializeToString(math);
+    }
+    return htmlString;
+  }
+
   sanitizeMathMLForWord(mathMLString) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(mathMLString, "application/xml");
@@ -239,13 +252,17 @@ class KatexGPT {
     // Only select equations that haven't been processed yet
     const allCandidates = Array.from(
       document.querySelectorAll(
-        ".katex:not(.kgpt-processed), .katex-display:not(.kgpt-processed)"
+        ".katex:not(.kgpt-processed), .katex-display:not(.kgpt-processed), .katex-mathml:not(.kgpt-processed)"
       )
     );
     // Prefer binding to inner .katex if present; avoid double-binding .katex-display that contains a .katex child
+    // Also ensure .katex-mathml is not already inside a .katex/.katex-display that we are handling
     const equations = allCandidates.filter((el) => {
       if (el.classList.contains("katex-display")) {
         return !el.querySelector(".katex");
+      }
+      if (el.classList.contains("katex-mathml")) {
+        return !el.closest(".katex, .katex-display");
       }
       return true;
     });
@@ -478,6 +495,7 @@ class KatexGPT {
           let mathMLString = katex
             .renderToString(texSource, { output: "mathml" })
             .replaceAll("&nbsp;", " ");
+          mathMLString = this.stripKatexSpan(mathMLString);
           mathMLString = this.sanitizeMathMLForWord(mathMLString);
           generatedFromTex = true;
           this.copyToClipboard(mathMLString)
@@ -504,6 +522,7 @@ class KatexGPT {
             let mathMLString = katex
               .renderToString(texFromHtml, { output: "mathml" })
               .replaceAll("&nbsp;", " ");
+            mathMLString = this.stripKatexSpan(mathMLString);
             mathMLString = this.sanitizeMathMLForWord(mathMLString);
             generatedFromTex = true;
             this.copyToClipboard(mathMLString)
