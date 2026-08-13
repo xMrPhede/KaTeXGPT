@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const versionEl = document.getElementById('version');
+  if (versionEl && chrome.runtime?.getManifest) {
+    versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
+
   const mathmlRadio = document.getElementById('mathml');
   const latexRadio = document.getElementById('latex');
   const latexOptions = document.getElementById('latex-options');

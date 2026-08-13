@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>KaTeXGPT pipeline harness</title>
+  <script src="../katex.min.js"></script>
+</head>
+<body>
+  <div id="cases"></div>
+
+  <script>
+    // Minimal stubs so content.js can run outside the extension.
+    window.confetti = function () {};
+    window.chrome = {
+      storage: { local: { get: (keys, cb) => cb({ outputFormat: "mathml" }) } },
+    };
+    // Capture clipboard writes instead of touching the real clipboard.
+    window.__copied = null;
+    navigator.clipboard.writeText = (t) => {
+      window.__copied = t;
+      return Promise.resolve();
+    };
+  </script>
+  <script src="../content.js"></script>
+
+  <script>
+    // Equations exercised by the test suite.
+    window.CASES = [
+      ["osCfar",     "T_{\\mathrm{OS}}(r,c) = \\max\\left[P_{\\min}, \\alpha_{\\mathrm{CFAR}} P_{(k)}\\right]"],
+      ["subOnly",    "x_1"],
+      ["supOnly",    "x^2"],
+      ["subAndSup",  "x_i^2"],
+      ["nestedSub",  "P_{k_{j}}"],
+      ["frac",       "\\frac{a+b}{c-d}"],
+      ["sumLimits",  "\\sum_{i=1}^{n} x_i^2"],
+      ["integral",   "\\int_0^\\infty e^{-x^2}\\,dx"],
+      ["sqrtIndex",  "\\sqrt[3]{x_1^2}"],
+      ["matrix",     "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}"],
+      ["cases",      "f(x)=\\begin{cases} 1 & x>0 \\\\ 0 & x\\le 0\\end{cases}"],
+      ["greekPrime", "\\phi'(t) + \\psi''(t) = \\Omega_{0}"],
+      ["overUnder",  "\\lim_{n\\to\\infty} \\frac{1}{n}"],
+      ["vector",     "\\vec{v} \\cdot \\hat{n} = \\|v\\|\\cos\\theta"],
+      ["binom",      "\\binom{n}{k} = \\frac{n!}{k!(n-k)!}"],
+      ["minSub",     "P_{\\min} + Q_{\\max}"],
+      ["logSub",     "\\log_2 n + \\ln_{e} x"],
+      ["opname",     "\\operatorname{sinc}_{k}(x)^{2}"],
+      ["limSup",     "\\limsup_{n} a_n^{p}"],
+      ["nested",     "e^{x^{y^{z}}} + a_{b_{c_{d}}}"],
+      ["align",      "\\begin{aligned} x &= 1 \\\\ y &= 2 \\end{aligned}"],
+      ["text",       "\\text{if } x \\geq 0 \\text{ then } y_{\\text{out}}"],
+      ["bigops",     "\\prod_{k=1}^{m}\\bigcup_{i}A_i"],
+      ["accents",    "\\bar{x}_{i} + \\tilde{y}^{j} + \\dot{z}"],
+      ["stretchy",   "\\left\\{\\frac{\\left(a+b\\right)}{c}\\right\\}"],
+      ["fencedVars", "f\\left(x, y\\right) + g\\left(\\alpha, \\beta\\right)"],
+      ["variants",   "\\mathbb{R} \\subset \\mathbf{v} + \\mathcal{L} + \\mathrm{d}x"],
+      ["bigFrac",    "\\left[\\frac{a}{b}\\right]"],
+      ["matAlign",   "\\begin{bmatrix} 1 & 22 \\\\ 333 & 4 \\end{bmatrix}"],
+    ];
+
+    // Render each case the way a provider would, in the requested DOM shape.
+    // shape "chatgpt"  -> KaTeX output:"html" only, TeX in data-math-source
+    // shape "mathml"   -> KaTeX default htmlAndMathml (Claude/Gemini/Perplexity style)
+    // shape "bare"     -> output:"html" only and NO source attribute at all
+    //                     (forces the last-resort katex-html heuristic)
+    window.buildCases = function (shape) {
+      const host = document.getElementById("cases");
+      host.innerHTML = "";
+      window.CASES.forEach(([name, tex]) => {
+        const wrap = document.createElement("div");
+        wrap.dataset.case = name;
+
+        const inner = document.createElement("span");
+        inner.innerHTML = katex.renderToString(tex, {
+          displayMode: true,
+          throwOnError: false,
+          output: shape === "mathml" ? "htmlAndMathml" : "html",
+        });
+
+        if (shape === "chatgpt") {
+          const src = document.createElement("span");
+          src.setAttribute("role", "math");
+          src.setAttribute("data-math-source", tex);
+          src.setAttribute("aria-label", tex);
+          src.appendChild(inner);
+          wrap.appendChild(src);
+        } else {
+          wrap.appendChild(inner);
+        }
+        host.appendChild(wrap);
+      });
+    };
+
+    // Run the extension's real copy pipeline over one rendered case.
+    window.runCase = function (name) {
+      const el = document.querySelector(`[data-case="${name}"] .katex`);
+      if (!el) return { name, error: "no .katex rendered" };
+      window.__copied = null;
+      let error = null;
+      try {
+        katexGPT.handleMathmlCopy(el);
+      } catch (e) {
+        error = String(e && e.message);
+      }
+      return { name, error, out: window.__copied };
+    };
+
+    window.runAll = function (shape) {
+      window.buildCases(shape);
+      return window.CASES.map(([n]) => window.runCase(n));
+    };
+
+    // --- Whole-message copy ---------------------------------------------
+
+    // A realistic assistant reply: prose with inline math, display equations,
+    // a heading, a bullet list and a table.
+    const inlineTex = (tex, shape) => {
+      const html = katex.renderToString(tex, { throwOnError: false,
+        output: shape === "mathml" ? "htmlAndMathml" : "html" });
+      return shape === "chatgpt"
+        ? `<span role="math" data-math-source="${tex.replace(/"/g, "&quot;")}">${html}</span>`
+        : html;
+    };
+    const blockTex = (tex, shape) => {
+      const html = katex.renderToString(tex, { displayMode: true, throwOnError: false,
+        output: shape === "mathml" ? "htmlAndMathml" : "html" });
+      return shape === "chatgpt"
+        ? `<span role="math" data-math-source="${tex.replace(/"/g, "&quot;")}">${html}</span>`
+        : html;
+    };
+
+    window.buildMessage = function (shape) {
+      const host = document.getElementById("cases");
+      host.innerHTML = "";
+      const msg = document.createElement("div");
+      msg.setAttribute("data-message-author-role", "assistant");
+      const md = document.createElement("div");
+      md.className = "markdown";
+      md.innerHTML = `
+<h2>OS-CFAR detector</h2>
+<p>The detector sorts training-cell powers and uses the
+${inlineTex("k", shape)}-th order statistic ${inlineTex("T_{\\mathrm{OS}}", shape)},
+which is robust when ${inlineTex("x_i^2", shape)} contains interferers.</p>
+${blockTex("T_{\\mathrm{OS}}(r,c) = \\max\\left[P_{\\min}, \\alpha_{\\mathrm{CFAR}} P_{(k)}\\right]", shape)}
+<p>Here the threshold scales with ${inlineTex("\\alpha_{\\mathrm{CFAR}}", shape)} and:</p>
+<ul>
+  <li>rank ${inlineTex("k", shape)} near ${inlineTex("0.75N", shape)} works well</li>
+  <li>the noise estimate is ${inlineTex("\\frac{1}{N}\\sum_{i=1}^{N} x_i", shape)}</li>
+</ul>
+${blockTex("\\int_0^\\infty e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}", shape)}
+<p>See <strong>Rohling</strong> for the derivation.</p>
+<button aria-label="copy">copy</button>
+`;
+      msg.appendChild(md);
+      host.appendChild(msg);
+      return msg;
+    };
+
+    window.runMessage = function (shape) {
+      const msg = window.buildMessage(shape);
+      katexGPT.addMessageCopyButtons();
+      const root = document.querySelector('[data-message-author-role="assistant"]');
+      return {
+        shape,
+        buttons: document.querySelectorAll(".kgpt-copy-message").length,
+        html: katexGPT.buildMessageHtml(root),
+        text: katexGPT.buildMessagePlainText(root),
+      };
+    };
+  </script>
+</body>
+</html>

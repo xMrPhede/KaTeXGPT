@@ -30,3 +30,35 @@
 .copyable-equation:active::after {
   content: "Copied!";
 }
+
+/* Whole-message "Copy for Word" button */
+.kgpt-message {
+  position: relative;
+}
+
+.kgpt-copy-message {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 4px 10px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 6px;
+  background: #343541;
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.kgpt-message:hover .kgpt-copy-message,
+.kgpt-copy-message:focus-visible {
+  opacity: 0.95;
+}
+
+.kgpt-copy-message:hover {
+  opacity: 1;
+}

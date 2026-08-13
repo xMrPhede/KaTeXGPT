@@ -1,3 +1,15 @@
+// Containers that wrap a single assistant reply, most specific first. The last
+// two are generic markdown bodies used as a fallback when a provider changes
+// its markup.
+const MESSAGE_CONTAINERS = [
+  '[data-message-author-role="assistant"]', // ChatGPT
+  ".font-claude-response", // Claude
+  "message-content", // Gemini
+  '[data-testid="answer"]', // Perplexity
+  ".markdown",
+  ".prose",
+];
+
 class KatexGPT {
   constructor() {
     console.log("🚀 KatexGPT Extension initialized");
@@ -114,6 +126,7 @@ class KatexGPT {
   enableObserver() {
     const observer = new MutationObserver(() => {
       this.createCopyEquationButtons();
+      this.addMessageCopyButtons();
     });
 
     observer.observe(document.body, {
@@ -191,17 +204,18 @@ class KatexGPT {
     const annotations = xmlDoc.querySelectorAll("annotation, annotation-xml");
     annotations.forEach((ann) => ann.parentNode?.removeChild(ann));
 
-    // Attributes Word doesn't support
+    // Attributes Word ignores. Verified against Word for Mac by pasting the
+    // same equation with and without each one, so only attributes that change
+    // nothing are listed here. Word DOES honour "accent"/"accentunder" (without
+    // them \vec and \bar float off to one side instead of centering) and
+    // "linethickness" (without it \binom gains a fraction bar), so those must
+    // survive. Layout hints like "mathvariant", "columnalign" and "stretchy"
+    // are kept for the same reason.
     const unsupportedAttrs = [
-      "mathvariant", "lspace", "rspace", "accent", "accentunder",
-      "align", "columnalign", "columnlines", "columnspacing", "columnwidth",
-      "equalcolumns", "equalrows", "frame", "rowalign", "rowlines",
-      "rowspacing", "side", "minlabelspacing", "charalign", "charspacing",
-      "linethickness", "bevelled", "notation", "longdivstyle", "actuarial",
-      "radical", "stretchy", "symmetric", "maxsize", "minsize", "largeop",
-      "movablelimits", "form", "separator", "fence", "linebreak",
-      "lineleading", "linebreakstyle", "linebreakmultchar", "indentalign",
-      "indentshift", "indenttarget", "indentalignfirst", "indentalignlast",
+      "lspace", "rspace", "side", "minlabelspacing", "charalign", "charspacing",
+      "longdivstyle", "actuarial", "linebreak", "lineleading",
+      "linebreakstyle", "linebreakmultchar", "indentalign", "indentshift",
+      "indenttarget", "indentalignfirst", "indentalignlast",
       "indentshiftfirst", "indentshiftlast",
     ];
 
@@ -210,10 +224,20 @@ class KatexGPT {
       unsupportedAttrs.forEach((attr) => el.removeAttribute(attr));
     }
 
+    // Drop invisible control operators (function application, invisible times,
+    // separator and plus). They carry no meaning for Word, can render as
+    // garbage boxes, and KaTeX emits them inside <msub>/<msup>, which makes
+    // those elements invalid by giving them a third child.
+    const invisibleOps = ["⁡", "⁢", "⁣", "⁤"];
+
     // Replace prime entities (′, ″, ‴) with simple apostrophes
     const moElements = xmlDoc.getElementsByTagName("mo");
     for (let mo of Array.from(moElements)) {
       const content = mo.textContent.trim();
+      if (invisibleOps.includes(content)) {
+        mo.parentNode?.removeChild(mo);
+        continue;
+      }
       if (
         content === "′" || content === "&#x2032;" || content === "&#8242;" ||
         content === "″" || content === "&#x2033;" || content === "&#8243;" ||
@@ -230,20 +254,9 @@ class KatexGPT {
       }
     }
 
-    // Replace non-breaking spaces with regular spaces (Word dislikes NBSPs in MathML)
-    const textNodes = xmlDoc.evaluate(
-      "//text()",
-      xmlDoc,
-      null,
-      XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE,
-      null
-    );
-    for (let i = 0; i < textNodes.snapshotLength; i++) {
-      const node = textNodes.snapshotItem(i);
-      if (node.nodeValue) {
-        node.nodeValue = node.nodeValue.replace(/\u00A0/g, " ");
-      }
-    }
+    // Non-breaking spaces are deliberately left alone. Word collapses ordinary
+    // leading/trailing spaces inside <mtext>, so rewriting them turns
+    // "\text{if } x \text{ then }" into "ifxthen".
 
     return new XMLSerializer().serializeToString(xmlDoc);
   }
@@ -315,12 +328,15 @@ class KatexGPT {
           .closest(".katex-display, .katex")
           .getAttribute("aria-label"));
 
+    // ChatGPT renders KaTeX with output:"html" (no <math>, no <annotation>) and
+    // keeps the original TeX in data-math-source on the wrapper.
     const dataTexEl =
       equation.closest(
-        '*[data-tex], *[data-latex], *[data-math], *[data-equation], *[data-original], *[data-original-tex], *[data-source]'
+        '*[data-math-source], *[data-tex], *[data-latex], *[data-math], *[data-equation], *[data-original], *[data-original-tex], *[data-source]'
       ) || equation;
 
     const dataTex =
+      dataTexEl?.getAttribute("data-math-source") ||
       dataTexEl?.getAttribute("data-tex") ||
       dataTexEl?.getAttribute("data-latex") ||
       dataTexEl?.getAttribute("data-math") ||
@@ -338,7 +354,9 @@ class KatexGPT {
           ?.textContent) ||
       null;
 
-    return ariaTex || dataTex || scriptTex || null;
+    // Explicit source attributes beat aria-label: some hosts put spoken text
+    // ("T sub O S") in aria-label rather than TeX.
+    return dataTex || ariaTex || scriptTex || null;
   }
 
   handleLatexCopy(equation, delimiter) {
@@ -419,17 +437,30 @@ class KatexGPT {
       }
       if (node.nodeType !== Node.ELEMENT_NODE) return "";
       const el = node;
-      const cls = el.className || "";
+      // KaTeX draws radicals and stretchy delimiters with SVG, where className
+      // is an SVGAnimatedString rather than a string.
+      const cls = el.getAttribute("class") || "";
       if (structuralPattern.test(cls)) {
         return Array.from(el.childNodes).map(harvest).join("");
       }
       if (cls.includes("msupsub")) {
-        // Treat as a superscript by default
-        const supText = Array.from(el.childNodes)
-          .map(harvest)
-          .join("")
-          .trim();
-        return `^{${supText}}`;
+        // KaTeX stacks scripts in a vlist. `top` is negative and more negative
+        // means higher on the page, so the topmost row is the superscript and
+        // the bottom row is the subscript. With a single row, KaTeX only emits
+        // the extra `vlist-t2` baseline row when the script hangs below the
+        // baseline, i.e. when it is a subscript.
+        const rows = Array.from(el.querySelectorAll(".vlist > span"))
+          .filter((s) => s.style.top)
+          .map((s) => ({ top: parseFloat(s.style.top), text: harvest(s).trim() }))
+          .filter((r) => r.text && !Number.isNaN(r.top))
+          .sort((a, b) => a.top - b.top);
+
+        if (!rows.length) return "";
+        if (rows.length === 1) {
+          const isSub = !!el.querySelector(".vlist-t2");
+          return `${isSub ? "_" : "^"}{${rows[0].text}}`;
+        }
+        return `_{${rows[rows.length - 1].text}}^{${rows[0].text}}`;
       }
       if (tokenPattern.test(cls)) {
         // Keep spacing around relation/binary operators
@@ -446,235 +477,369 @@ class KatexGPT {
     return tex || null;
   }
 
-  handleMathmlCopy(equation) {
-    // Aggressively find the <math> element, ignoring HTML wrappers
-    let mathElement = null;
-
-    // Strategy 1: Direct query from clicked element
-    mathElement = equation.querySelector("math");
-
-    // Strategy 2: Walk up to .katex or .katex-display container and find <math>
-    if (!mathElement) {
-      const container = equation.closest(".katex, .katex-display");
-      if (container) {
-        mathElement = container.querySelector("math");
-      }
+  // Locates the <math> element for a rendered equation. Providers nest it
+  // differently, so check the node itself, its KaTeX container, then siblings.
+  findMathElement(equation) {
+    if (equation.tagName && equation.tagName.toLowerCase() === "math") {
+      return equation;
     }
+    const container = equation.closest(".katex, .katex-display");
+    const inside =
+      equation.querySelector("math") ||
+      container?.querySelector("math") ||
+      equation.querySelector(".katex-mathml")?.querySelector("math") ||
+      container?.querySelector(".katex-mathml")?.querySelector("math");
+    if (inside) return inside;
 
-    // Strategy 3: Check if clicked element itself is <math>
-    if (
-      !mathElement &&
-      equation.tagName &&
-      equation.tagName.toLowerCase() === "math"
-    ) {
-      mathElement = equation;
-    }
+    // Last resort: a sibling <math>. Only trust it when the parent holds
+    // exactly one, otherwise a neighbouring equation would be copied instead.
+    const siblings = equation.parentElement?.querySelectorAll("math");
+    return siblings && siblings.length === 1 ? siblings[0] : null;
+  }
 
-    // Strategy 4: Check siblings
-    if (!mathElement && equation.parentElement) {
-      mathElement = equation.parentElement.querySelector("math");
-    }
+  optimizeFencedMrows(xmlDoc) {
+    const mathNS = "http://www.w3.org/1998/Math/MathML";
+    const mrowElements = Array.from(xmlDoc.getElementsByTagName("mrow"));
 
-    // Strategy 5: Look inside .katex-mathml specifically
-    if (!mathElement) {
-      const katexMathml =
-        equation.querySelector(".katex-mathml") ||
-        equation.closest(".katex, .katex-display")?.querySelector(".katex-mathml");
-      if (katexMathml) {
-        mathElement = katexMathml.querySelector("math");
-      }
-    }
-
-    // If we didn't find MathML, try to recover TeX and render MathML via KaTeX
-    let generatedFromTex = false;
-    if (!mathElement) {
-      const texSource = this.getTexSource(equation);
-
-      if (texSource && typeof katex !== "undefined" && katex.renderToString) {
-        try {
-          let mathMLString = katex
-            .renderToString(texSource, { output: "mathml" })
-            .replaceAll("&nbsp;", " ");
-          mathMLString = this.stripKatexSpan(mathMLString);
-          mathMLString = this.sanitizeMathMLForWord(mathMLString);
-          generatedFromTex = true;
-          this.copyToClipboard(mathMLString)
-            .then(() => {
-              console.log("✅ MathML (from TeX) copied to clipboard");
-              this.updateStats();
-              this.showCopyFeedback(equation);
-            })
-            .catch((err) => {
-              console.error("❌ Failed to copy equation (from TeX):", err);
-            });
-        } catch (e) {
-          console.error("❌ KaTeX renderToString failed on recovered TeX:", e);
-        }
-      } else if (!texSource) {
-        // 3) Last-resort: derive TeX heuristically from KaTeX HTML, then render to MathML
-        try {
-          const texFromHtml = this.extractTexFromKatexHtml(equation);
-          if (
-            texFromHtml &&
-            typeof katex !== "undefined" &&
-            katex.renderToString
-          ) {
-            let mathMLString = katex
-              .renderToString(texFromHtml, { output: "mathml" })
-              .replaceAll("&nbsp;", " ");
-            mathMLString = this.stripKatexSpan(mathMLString);
-            mathMLString = this.sanitizeMathMLForWord(mathMLString);
-            generatedFromTex = true;
-            this.copyToClipboard(mathMLString)
-              .then(() => {
-                console.log("✅ MathML (from katex-html heuristic) copied");
-                this.updateStats();
-                this.showCopyFeedback(equation);
-              })
-              .catch((err) => {
-                console.error(
-                  "❌ Failed to copy equation (from katex-html heuristic):",
-                  err
-                );
-              });
-          } else {
-            console.warn(
-              "No MathML/TeX source and katex-html heuristic failed to extract TeX."
-            );
-          }
-        } catch (err) {
-          console.error("❌ katex-html to MathML heuristic failed:", err);
-        }
-      }
-    }
-
-    // If we found MathML in DOM, proceed with original flow
-    if (!generatedFromTex && mathElement) {
-      console.log(
-        "🔍 Found mathElement, nodeName:",
-        mathElement.nodeName,
-        "tagName:",
-        mathElement.tagName
+    mrowElements.forEach((mrow) => {
+      const elementChildren = Array.from(mrow.childNodes).filter(
+        (node) => node.nodeType === Node.ELEMENT_NODE
       );
 
-      // Ensure we're extracting ONLY the <math> element, not any wrapper
-      if (mathElement.nodeName.toLowerCase() !== "math") {
-        console.warn(
-          "⚠️ mathElement is not <math>, it's:",
-          mathElement.nodeName,
-          "- searching for <math> inside"
+      if (
+        elementChildren.length > 0 &&
+        elementChildren[0].nodeName === "mo" &&
+        elementChildren[0].getAttribute("fence") === "true"
+      ) {
+        // This is a fenced mrow.
+        // 1. Replace comma operators <mo>,</mo> with <mtext>, </mtext> so
+        //    Word puts a space after the separator.
+        // 2. Remove empty <mtext>
+        //
+        // Identifiers are deliberately left as <mi>: rewriting them to
+        // <mtext> makes Word render variables upright, so "f(x, y)" comes
+        // out in body text style instead of math italic.
+        const newChildren = [];
+
+        elementChildren.forEach((child) => {
+          if (child.nodeName === "mo" && child.textContent.trim() === ",") {
+            const mtext = xmlDoc.createElementNS(mathNS, "mtext");
+            // NBSP, not a plain space: Word collapses a trailing ordinary
+            // space in <mtext> and the separator loses its gap.
+            mtext.textContent = ",\u00a0";
+            newChildren.push(mtext);
+          } else if (child.nodeName === "mtext") {
+            if (child.textContent.trim().length > 0) {
+              newChildren.push(child);
+            }
+          } else {
+            newChildren.push(child);
+          }
+        });
+
+        while (mrow.firstChild) {
+          mrow.removeChild(mrow.firstChild);
+        }
+        newChildren.forEach((child) => mrow.appendChild(child));
+      }
+    });
+  }
+
+  // Turns one rendered equation into Word-ready MathML, or null if the source
+  // cannot be resolved. Every copy path goes through here.
+  buildMathMLFor(equation) {
+    const mathElement = this.findMathElement(equation);
+    let mathMLString;
+
+    if (mathElement) {
+      mathMLString = new XMLSerializer()
+        .serializeToString(mathElement)
+        .replaceAll("&nbsp;", " ");
+    } else {
+      let tex = this.getTexSource(equation);
+      if (!tex) {
+        try {
+          tex = this.extractTexFromKatexHtml(equation);
+        } catch (e) {
+          console.error("katex-html TeX heuristic failed:", e);
+        }
+      }
+      if (!tex || typeof katex === "undefined" || !katex.renderToString) {
+        console.warn("No MathML or TeX could be resolved for KaTeX node.");
+        return null;
+      }
+      try {
+        mathMLString = this.stripKatexSpan(
+          katex
+            .renderToString(tex, { output: "mathml" })
+            .replaceAll("&nbsp;", " ")
         );
-        mathElement = mathElement.querySelector("math");
+      } catch (e) {
+        console.error("KaTeX renderToString failed:", e);
+        return null;
+      }
+    }
+
+    const xmlDoc = new DOMParser().parseFromString(
+      mathMLString,
+      "application/xml"
+    );
+    if (xmlDoc.getElementsByTagName("parsererror").length) {
+      console.error("MathML did not parse as XML");
+      return null;
+    }
+    this.optimizeFencedMrows(xmlDoc);
+    return this.sanitizeMathMLForWord(
+      new XMLSerializer().serializeToString(xmlDoc)
+    );
+  }
+
+  handleMathmlCopy(equation) {
+    const mathMLString = this.buildMathMLFor(equation);
+    if (!mathMLString) return;
+
+    this.copyToClipboard(mathMLString)
+      .then(() => {
+        this.updateStats();
+        this.showCopyFeedback(equation);
+      })
+      .catch((err) => console.error("Failed to copy equation:", err));
+  }
+
+  // --- Whole-message copy ---------------------------------------------------
+
+  // Adds one "Copy for Word" button per assistant reply that contains math.
+  addMessageCopyButtons() {
+    const matches = [];
+    MESSAGE_CONTAINERS.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        if (!matches.includes(el)) matches.push(el);
+      });
+    });
+
+    // Several selectors can match the same reply at different depths. Keep the
+    // outermost so the button appears once and the copy covers the full text.
+    const roots = matches.filter(
+      (el) => !matches.some((other) => other !== el && other.contains(el))
+    );
+
+    roots.forEach((root) => {
+      if (root.dataset.kgptMessage) return;
+      if (!root.querySelector(".katex")) return;
+
+      root.dataset.kgptMessage = "1";
+      root.classList.add("kgpt-message");
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "kgpt-copy-message";
+      btn.textContent = "Copy for Word";
+      btn.addEventListener(
+        "click",
+        (evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          this.handleMessageCopy(root, btn);
+        },
+        true
+      );
+      root.appendChild(btn);
+    });
+  }
+
+  handleMessageCopy(root, btn) {
+    const html = this.buildMessageHtml(root);
+    const text = this.buildMessagePlainText(root);
+
+    this.copyRich(html, text)
+      .then(() => {
+        this.updateStats();
+        if (btn) {
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = "Copy for Word"), 1500);
+        }
+      })
+      .catch((err) => console.error("Failed to copy message:", err));
+  }
+
+  // Strips interface chrome that would otherwise paste as stray text.
+  cleanMessageClone(clone) {
+    clone
+      .querySelectorAll(
+        "button, svg, .sr-only, .kgpt-copy-message, .kgpt-feedback"
+      )
+      .forEach((el) => el.remove());
+  }
+
+  // Word eats an ordinary space that sits directly against an equation, so the
+  // space touching inline math has to be a non-breaking one. Providers wrap
+  // equations in spans of their own, so neighbours are found in document order
+  // rather than as direct siblings.
+  padInlineMathBoundaries(clone) {
+    const walker = document.createTreeWalker(
+      clone,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: (node) =>
+          node.nodeType === Node.TEXT_NODE ||
+          node.nodeName.toLowerCase() === "math"
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP,
+      }
+    );
+
+    const flow = [];
+    while (walker.nextNode()) flow.push(walker.currentNode);
+
+    flow.forEach((node, i) => {
+      if (node.nodeName.toLowerCase() !== "math") return;
+      if (node.getAttribute("display") === "block") return;
+
+      const prev = flow[i - 1];
+      if (prev?.nodeType === Node.TEXT_NODE && /\s$/.test(prev.nodeValue)) {
+        prev.nodeValue = prev.nodeValue.replace(/\s+$/, "\u00a0");
+      }
+      const next = flow[i + 1];
+      if (next?.nodeType === Node.TEXT_NODE && /^\s/.test(next.nodeValue)) {
+        next.nodeValue = next.nodeValue.replace(/^\s+/, "\u00a0");
+      }
+    });
+  }
+
+  // Builds the text/html flavour: the reply's markup with every rendered
+  // equation swapped for the MathML that Word understands.
+  buildMessageHtml(root) {
+    const live = Array.from(root.querySelectorAll(".katex"));
+    const clone = root.cloneNode(true);
+    const cloned = Array.from(clone.querySelectorAll(".katex"));
+
+    live.forEach((equation, i) => {
+      const target = cloned[i];
+      if (!target) return;
+
+      const displayWrap = target.closest(".katex-display");
+      let replaced = displayWrap || target;
+      const mathML = this.buildMathMLFor(equation);
+
+      // Providers wrap a display equation in inline spans of their own. A block
+      // nested inside an inline element makes Word split the paragraph and emit
+      // a stray blank line, so climb out of wrappers that hold nothing else.
+      if (displayWrap) {
+        const holdsOnly = (el) => {
+          const parent = el.parentElement;
+          if (!parent || parent === clone) return false;
+          return Array.from(parent.childNodes).every(
+            (n) =>
+              n === el ||
+              (n.nodeType === Node.TEXT_NODE && !n.nodeValue.trim())
+          );
+        };
+        while (holdsOnly(replaced)) replaced = replaced.parentElement;
       }
 
-      if (!mathElement) {
-        console.error(
-          "❌ Could not locate <math> element after extraction attempt"
-        );
+      if (!mathML) {
+        replaced.remove();
         return;
       }
 
-      console.log("✓ Confirmed mathElement is <math>, proceeding to serialize");
+      // A div, not a p: the equation often already sits inside a paragraph and
+      // nesting p inside p makes Word drop the block.
+      const holder = document.createElement(displayWrap ? "div" : "span");
+      if (displayWrap) holder.setAttribute("style", "text-align:center");
+      holder.innerHTML = mathML;
+      replaced.replaceWith(holder);
 
-      let mathMLString = new XMLSerializer()
-        .serializeToString(mathElement)
-        .replaceAll("&nbsp;", " ");
-
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(mathMLString, "application/xml");
-
-      function optimizeFencedMrows(xmlDoc) {
-        const mathNS = "http://www.w3.org/1998/Math/MathML";
-        const mrowElements = Array.from(xmlDoc.getElementsByTagName("mrow"));
-
-        mrowElements.forEach((mrow) => {
-          const elementChildren = Array.from(mrow.childNodes).filter(
-            (node) => node.nodeType === Node.ELEMENT_NODE
-          );
-
-          if (
-            elementChildren.length > 0 &&
-            elementChildren[0].nodeName === "mo" &&
-            elementChildren[0].getAttribute("fence") === "true"
-          ) {
-            // This is a fenced mrow. 
-            // 1. Replace comma operators <mo>,</mo> with <mtext>, </mtext>
-            // 2. Convert identifiers <mi> to <mtext>
-            // 3. Remove empty <mtext>
-
-            const newChildren = [];
-
-            elementChildren.forEach((child) => {
-              if (child.nodeName === "mo" && child.textContent.trim() === ",") {
-                // Case 1: Convert comma operator to text
-                const mtext = xmlDoc.createElementNS(mathNS, "mtext");
-                mtext.textContent = ", ";
-                newChildren.push(mtext);
-              }
-              else if (child.nodeName === "mi") {
-                // Case 2: Convert identifier to text
-                // Detect if it contains Greek letters or Math symbols - if so, maybe keep as mi? 
-                // But user requested "replace <mi> with mtext whenever you find one".
-                // We will blindly follow this for fenced content as requested.
-                const mtext = xmlDoc.createElementNS(mathNS, "mtext");
-                mtext.textContent = child.textContent;
-                // Only add if content is not empty
-                if (mtext.textContent.trim().length > 0) {
-                  newChildren.push(mtext);
-                }
-              }
-              else if (child.nodeName === "mtext") {
-                // Case 3: Filter existing mtext
-                if (child.textContent.trim().length > 0) {
-                  newChildren.push(child);
-                }
-              }
-              else {
-                // Keep other elements (operators, numbers, sub/sup, etc.)
-                newChildren.push(child);
-              }
-            });
-
-            // Clear existing children
-            while (mrow.firstChild) {
-              mrow.removeChild(mrow.firstChild);
-            }
-
-            // Append new children
-            newChildren.forEach((child) => {
-              mrow.appendChild(child);
-            });
+      // Whitespace left either side of a block equation becomes an empty
+      // paragraph in Word, which shows up as a stray blank line.
+      if (displayWrap) {
+        [holder.previousSibling, holder.nextSibling].forEach((sib) => {
+          if (sib?.nodeType === Node.TEXT_NODE && !sib.nodeValue.trim()) {
+            sib.remove();
           }
         });
       }
+    });
 
-      optimizeFencedMrows(xmlDoc);
-      mathMLString = new XMLSerializer().serializeToString(xmlDoc);
-      mathMLString = this.sanitizeMathMLForWord(mathMLString);
+    this.padInlineMathBoundaries(clone);
+    this.cleanMessageClone(clone);
+    return clone.innerHTML;
+  }
 
-      console.log(
-        "📋 Copying MathML to clipboard:",
-        mathMLString.substring(0, 200) + "..."
-      );
+  // Plain-text flavour, for editors that ignore text/html. Equations fall back
+  // to their LaTeX source.
+  buildMessagePlainText(root) {
+    const live = Array.from(root.querySelectorAll(".katex"));
+    const clone = root.cloneNode(true);
+    const cloned = Array.from(clone.querySelectorAll(".katex"));
 
-      this.copyToClipboard(mathMLString)
-        .then(() => {
-          console.log(
-            "✅ MathML copied to clipboard (length:",
-            mathMLString.length,
-            "chars)"
-          );
-          this.updateStats();
-          this.showCopyFeedback(equation);
-        })
-        .catch((err) => {
-          console.error("❌ Failed to copy equation:", err);
-        });
-    } else if (!generatedFromTex && !mathElement) {
-      console.warn(
-        "No MathML or TeX could be resolved for clicked KaTeX node."
-      );
+    live.forEach((equation, i) => {
+      const target = cloned[i];
+      if (!target) return;
+      const displayWrap = target.closest(".katex-display");
+      const tex = this.getTexSource(equation);
+      const rendered = tex
+        ? displayWrap
+          ? `\n$$${tex}$$\n`
+          : `$${tex}$`
+        : target.textContent;
+      (displayWrap || target).replaceWith(document.createTextNode(rendered));
+    });
+
+    this.cleanMessageClone(clone);
+
+    const BLOCK =
+      /^(P|DIV|LI|UL|OL|H1|H2|H3|H4|H5|H6|PRE|TABLE|TR|BLOCKQUOTE|BR)$/;
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return node.nodeValue || "";
+      if (node.nodeType !== Node.ELEMENT_NODE) return "";
+      const inner = Array.from(node.childNodes).map(walk).join("");
+      return BLOCK.test(node.tagName) ? `${inner}\n` : inner;
+    };
+
+    return walk(clone).replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // Writes both flavours so Word gets rich content and plain editors get text.
+  copyRich(html, text) {
+    if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+      const item = new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([text], { type: "text/plain" }),
+      });
+      return navigator.clipboard
+        .write([item])
+        .catch(() => this.copyRichFallback(html));
     }
+    return this.copyRichFallback(html);
+  }
+
+  // execCommand path for when the async clipboard is unavailable or rejects
+  // because the document is not focused.
+  copyRichFallback(html) {
+    const holder = document.createElement("div");
+    holder.setAttribute("contenteditable", "true");
+    holder.style.cssText = "position:fixed;left:-9999px;top:0;";
+    holder.innerHTML = html;
+    document.body.appendChild(holder);
+
+    const range = document.createRange();
+    range.selectNodeContents(holder);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (e) {
+      ok = false;
+    }
+    selection.removeAllRanges();
+    holder.remove();
+
+    return ok
+      ? Promise.resolve()
+      : Promise.reject(new Error("rich copy failed"));
   }
 
   showCopyFeedback(equation) {
@@ -684,6 +849,7 @@ class KatexGPT {
 
     // Create and show a temporary "Copied!" message
     const feedback = document.createElement("div");
+    feedback.className = "kgpt-feedback";
     feedback.textContent = "Copied!";
     feedback.style.cssText = `
             position: absolute;

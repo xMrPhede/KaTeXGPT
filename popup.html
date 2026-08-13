@@ -3,104 +3,293 @@
 <head>
   <meta charset="UTF-8">
   <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f7f7f8;
+      --surface-hover: #f0f0f2;
+      --border: #e4e4e7;
+      --text: #18181b;
+      --text-muted: #71717a;
+      --accent: #2563eb;
+      --accent-soft: rgba(37, 99, 235, 0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1f;
+        --surface: #242428;
+        --surface-hover: #2c2c31;
+        --border: #35353b;
+        --text: #f4f4f5;
+        --text-muted: #a1a1aa;
+        --accent: #60a5fa;
+        --accent-soft: rgba(96, 165, 250, 0.12);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      width: 220px;
-      padding: 15px;
-      color: #333;
-    }
-    h3 {
-      margin-top: 0;
-      margin-bottom: 15px;
-      font-size: 16px;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 10px;
-    }
-    .option-group {
-      margin-bottom: 15px;
-    }
-    .option-title {
-      font-weight: 600;
-      margin-bottom: 8px;
-      font-size: 14px;
-    }
-    .radio-option {
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-    }
-    .sub-option {
-      margin-left: 24px;
-      margin-bottom: 6px;
-      display: flex;
-      align-items: center;
-    }
-    label {
-      cursor: pointer;
-      font-size: 14px;
-      margin-left: 8px;
-    }
-    .sub-option label {
+      width: 288px;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
       font-size: 13px;
-      font-family: monospace;
+      line-height: 1.45;
     }
-    input[type="radio"] {
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding-bottom: 13px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header img {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+    }
+
+    .header h1 {
+      flex: 1;
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .version {
+      padding: 2px 7px;
+      border-radius: 99px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Section */
+    .section-label {
+      margin-bottom: 8px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Option rows */
+    .option {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 11px;
+      margin-bottom: 6px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
       cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease;
     }
+
+    .option:hover { background: var(--surface-hover); }
+
+    .option:has(input:checked) {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .option input[type="radio"] {
+      margin: 2px 0 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .option-text { display: flex; flex-direction: column; gap: 1px; }
+    .option-name { font-weight: 550; }
+    .option-hint { color: var(--text-muted); font-size: 11.5px; }
+
+    /* Delimiter chips */
     #latex-options {
-      margin-top: 8px;
       display: none;
+      margin: 2px 0 0 10px;
+      padding: 10px 0 4px 12px;
+      border-left: 2px solid var(--border);
     }
+
+    .chips { display: flex; gap: 6px; }
+
+    .chip {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 4px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--surface);
+      color: var(--text-muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease,
+        color 0.12s ease;
+    }
+
+    .chip:hover { background: var(--surface-hover); }
+
+    .chip input { position: absolute; opacity: 0; pointer-events: none; }
+
+    .chip:has(input:checked) {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* Footer */
     .footer {
-      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 13px;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
       font-size: 12px;
-      color: #666;
-      border-top: 1px solid #eee;
-      padding-top: 10px;
-      text-align: center;
-    }
-    a {
-      color: #2196F3;
+      font-weight: 550;
       text-decoration: none;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease;
     }
-    a:hover {
-      text-decoration: underline;
+
+    .btn:hover { background: var(--surface-hover); border-color: var(--text-muted); }
+    .btn svg { width: 14px; height: 14px; }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+
+    .icon-btn:hover { background: var(--surface-hover); border-color: var(--text-muted); }
+    .icon-btn svg { width: 16px; height: 16px; }
+
+    .spacer { flex: 1; }
+
+    a { color: inherit; }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
   </style>
 </head>
 <body>
-  <h3>KaTeXGPT Settings</h3>
-  
-  <div class="option-group">
-    <div class="option-title">Output Format</div>
-    <div class="radio-option">
-      <input type="radio" id="mathml" name="format" value="mathml" checked>
-      <label for="mathml">MathML (Word)</label>
-    </div>
-    <div class="radio-option">
-      <input type="radio" id="latex" name="format" value="latex">
-      <label for="latex">LaTeX</label>
-    </div>
+  <div class="header">
+    <img src="icons/icon48.png" alt="">
+    <h1>KaTeXGPT</h1>
+    <span class="version" id="version"></span>
+  </div>
 
-    <div id="latex-options">
-      <div class="option-title" style="font-size: 12px; margin-bottom: 6px; margin-top: 4px;">Delimiters</div>
-      <div class="sub-option">
-        <input type="radio" id="delim-dollar" name="delimiter" value="dollar" checked>
-        <label for="delim-dollar">$...$</label>
-      </div>
-      <div class="sub-option">
-        <input type="radio" id="delim-brackets" name="delimiter" value="brackets">
-        <label for="delim-brackets">\[...\]</label>
-      </div>
-      <div class="sub-option">
-        <input type="radio" id="delim-double-dollar" name="delimiter" value="doubledollar">
-        <label for="delim-double-dollar">$$...$$</label>
-      </div>
+  <div class="section-label">Output format</div>
+
+  <label class="option" for="mathml">
+    <input type="radio" id="mathml" name="format" value="mathml" checked>
+    <span class="option-text">
+      <span class="option-name">MathML</span>
+      <span class="option-hint">Editable equations in Word &amp; Google Docs</span>
+    </span>
+  </label>
+
+  <label class="option" for="latex">
+    <input type="radio" id="latex" name="format" value="latex">
+    <span class="option-text">
+      <span class="option-name">LaTeX</span>
+      <span class="option-hint">Raw source for Overleaf, Notion or Markdown</span>
+    </span>
+  </label>
+
+  <div id="latex-options">
+    <div class="section-label">Delimiters</div>
+    <div class="chips">
+      <label class="chip" for="delim-dollar">
+        <input type="radio" id="delim-dollar" name="delimiter" value="dollar" checked>$…$</label>
+      <label class="chip" for="delim-double-dollar">
+        <input type="radio" id="delim-double-dollar" name="delimiter" value="doubledollar">$$…$$</label>
+      <label class="chip" for="delim-brackets">
+        <input type="radio" id="delim-brackets" name="delimiter" value="brackets">\[…\]</label>
     </div>
   </div>
 
   <div class="footer">
-    <a href="https://www.buymeacoffee.com/xmrphede" target="_blank">Buy me a coffee ☕</a>
+    <a class="btn" id="report-bug"
+       href="mailto:info@federicogranata.it?subject=Bug%20Report%20for%20KaTeXGPT"
+       target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M8 2h8l-1 4H9L8 2z"/>
+        <rect x="6" y="6" width="12" height="14" rx="6"/>
+        <path d="M6 12H2M22 12h-4M6 17l-3 2M18 17l3 2M6 8L3 6M18 8l3-2"/>
+      </svg>
+      Report a bug
+    </a>
+
+    <span class="spacer"></span>
+
+    <a class="icon-btn" href="https://github.com/xmrphede/KaTeXGPT"
+       target="_blank" rel="noopener" title="View project on GitHub"
+       aria-label="View project on GitHub">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+                 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+                 -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66
+                 .07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15
+                 -.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27
+                 c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15
+                 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2
+                 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+    </a>
+
+    <a class="icon-btn" href="https://www.buymeacoffee.com/xmrphede"
+       target="_blank" rel="noopener" title="Buy me a coffee"
+       aria-label="Buy me a coffee">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
+        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+        <line x1="6" y1="1" x2="6" y2="4"/>
+        <line x1="10" y1="1" x2="10" y2="4"/>
+        <line x1="14" y1="1" x2="14" y2="4"/>
+      </svg>
+    </a>
   </div>
 
   <script src="settings.js"></script>
