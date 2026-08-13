@@ -3,3 +3,6 @@ test/results.json
 test/variants.tsv
 
 .DS_Store
+
+# Packaged builds for the Chrome Web Store
+dist/
