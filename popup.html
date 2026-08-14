@@ -159,6 +159,7 @@
     .footer {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 8px;
       margin-top: 16px;
       padding-top: 13px;
@@ -200,6 +201,18 @@
 
     .icon-btn:hover { background: var(--surface-hover); border-color: var(--text-muted); }
     .icon-btn svg { width: 16px; height: 16px; }
+
+    /* ponytail: brand yellow is fixed in both themes, buymeacoffee owns the colour */
+    .coffee-btn {
+      width: 100%;
+      justify-content: center;
+      margin-top: 10px;
+      background: #ffdd00;
+      border-color: #e6c700;
+      color: #18181b;
+    }
+
+    .coffee-btn:hover { background: #ffd000; border-color: #d9bc00; }
 
     .spacer { flex: 1; }
 
@@ -278,9 +291,8 @@
       </svg>
     </a>
 
-    <a class="icon-btn" href="https://www.buymeacoffee.com/xmrphede"
-       target="_blank" rel="noopener" title="Buy me a coffee"
-       aria-label="Buy me a coffee">
+    <a class="btn coffee-btn" href="https://www.buymeacoffee.com/xmrphede"
+       target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
@@ -289,6 +301,7 @@
         <line x1="10" y1="1" x2="10" y2="4"/>
         <line x1="14" y1="1" x2="14" y2="4"/>
       </svg>
+      Buy me a coffee
     </a>
   </div>
 
