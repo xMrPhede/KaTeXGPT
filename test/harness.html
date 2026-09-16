@@ -52,9 +52,13 @@
       ["accents",    "\\bar{x}_{i} + \\tilde{y}^{j} + \\dot{z}"],
       ["stretchy",   "\\left\\{\\frac{\\left(a+b\\right)}{c}\\right\\}"],
       ["fencedVars", "f\\left(x, y\\right) + g\\left(\\alpha, \\beta\\right)"],
+      ["scalarVector", "k\\mathbf{u}=(k u_1,k u_2,0)"],
       ["variants",   "\\mathbb{R} \\subset \\mathbf{v} + \\mathcal{L} + \\mathrm{d}x"],
       ["bigFrac",    "\\left[\\frac{a}{b}\\right]"],
       ["matAlign",   "\\begin{bmatrix} 1 & 22 \\\\ 333 & 4 \\end{bmatrix}"],
+      ["tagged",     "d(x_i,x_j)=\\sqrt{\\sum_{m=1}^{p}(x_{im}-x_{jm})^2}\\tag{2.8}"],
+      ["absolute",    "\\mu_j=\\frac{1}{|C_j|}\\sum_{x_i\\in C_j}x_i\\tag{2.11}"],
+      ["scalarMatrix", "=-\\frac12\\begin{pmatrix}4&-2\\\\-3&1\\end{pmatrix}"],
     ];
 
     // Render each case the way a provider would, in the requested DOM shape.
@@ -102,6 +106,54 @@
         error = String(e && e.message);
       }
       return { name, error, out: window.__copied };
+    };
+
+    window.runLatexCase = function (name, delimiter, wrappedSource) {
+      const el = document.querySelector(`[data-case="${name}"] .katex`);
+      if (!el) return { name, error: "no .katex rendered" };
+
+      const sourceEl = el.closest("[data-math-source]");
+      const originalSource = sourceEl?.getAttribute("data-math-source");
+      if (sourceEl && wrappedSource) {
+        sourceEl.setAttribute("data-math-source", `$$${originalSource}$$`);
+      }
+
+      window.__copied = null;
+      let error = null;
+      try {
+        katexGPT.handleLatexCopy(el, delimiter);
+      } catch (e) {
+        error = String(e && e.message);
+      }
+
+      if (sourceEl && wrappedSource) {
+        sourceEl.setAttribute("data-math-source", originalSource);
+      }
+      return { name, error, out: window.__copied };
+    };
+
+    window.runLatexChecks = function () {
+      window.buildCases("chatgpt");
+      const block = window.runLatexCase("scalarMatrix", "dollar", false);
+      const wrapped = window.runLatexCase("scalarMatrix", "dollar", true);
+      const multiline = katexGPT.formatLatexForCopy(
+        "=\n-\\frac12\n\\begin{pmatrix}\n4&-2\\\\\n-3&1\n\\end{pmatrix}",
+        "dollar"
+      );
+      const brackets = katexGPT.formatLatexForCopy("x_1", "brackets");
+      const expected = "$=-\\frac{1}{2}\\begin{pmatrix}4&-2\\\\-3&1\\end{pmatrix}$";
+      return {
+        block,
+        wrapped,
+        multiline,
+        brackets,
+        passed:
+          block.out === expected &&
+          wrapped.out === expected &&
+          multiline ===
+            "$= -\\frac{1}{2} \\begin{pmatrix} 4&-2\\\\ -3&1 \\end{pmatrix}$" &&
+          brackets === "\\[x_1\\]",
+      };
     };
 
     window.runAll = function (shape) {
@@ -166,6 +218,7 @@ ${blockTex("\\int_0^\\infty e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}", shape)}
         text: katexGPT.buildMessagePlainText(root),
       };
     };
+
   </script>
 </body>
 </html>

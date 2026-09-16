@@ -34,7 +34,8 @@ the same equation into Word both ways:
 
 - script/fraction elements have the right number of children
 - no `<semantics>`/`<annotation>` left over
-- no invisible control operators (they break `<msub>` arity and can print boxes)
+- invisible-times operators appear only inside `<mrow>`; other invisible controls
+  are removed (inside `<msub>` they would break arity and can print boxes)
 - exactly one `<math>` root, no wrapper `<span>` leaking in
 - no plain space at an `<mtext>` edge (Word collapses it; NBSP survives)
 
